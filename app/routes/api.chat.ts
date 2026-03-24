@@ -8,6 +8,13 @@ import { buildSystemPrompt } from "../lib/ai/system-prompt";
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return Response.json(
+      { error: "ANTHROPIC_API_KEY is not configured" },
+      { status: 500 },
+    );
+  }
+
   const { messages } = (await request.json()) as { messages: UIMessage[] };
 
   const anthropic = createAnthropic({
@@ -22,6 +29,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(10),
+    onError: ({ error }) => {
+      console.error("streamText error:", error);
+    },
   });
 
   return result.toUIMessageStreamResponse();

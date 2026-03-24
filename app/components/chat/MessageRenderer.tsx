@@ -8,6 +8,8 @@ import { InventoryStatus } from "../generative-ui/InventoryStatus";
 import { LiquidPreview } from "../generative-ui/LiquidPreview";
 import { DiscountCard } from "../generative-ui/DiscountCard";
 import { ProductUpdateConfirm } from "../generative-ui/ProductUpdateConfirm";
+import { ComparisonCard } from "../generative-ui/ComparisonCard";
+import { UIErrorBoundary } from "../generative-ui/ErrorBoundary";
 
 interface MessageRendererProps {
   message: UIMessage;
@@ -36,13 +38,14 @@ export function MessageRenderer({ message }: MessageRendererProps) {
               : part.type.replace("tool-", "");
 
           return (
-            <ToolResultRenderer
-              key={index}
-              toolName={toolName}
-              state={toolPart.state}
-              result={toolPart.state === "result" ? toolPart.output : undefined}
-              args={toolPart.input}
-            />
+            <UIErrorBoundary key={index}>
+              <ToolResultRenderer
+                toolName={toolName}
+                state={toolPart.state}
+                result={toolPart.state === "result" ? toolPart.output : undefined}
+                args={toolPart.input}
+              />
+            </UIErrorBoundary>
           );
         }
 
@@ -133,6 +136,8 @@ function ToolResultRenderer({
       return <DiscountCard data={result} />;
     case "updateProductCopy":
       return <ProductUpdateConfirm data={result} />;
+    case "compareProducts":
+      return <ComparisonCard data={result} />;
     default:
       return (
         <div
@@ -169,6 +174,8 @@ function getLoadingText(toolName: string): string {
       return "Drafting discount code...";
     case "updateProductCopy":
       return "Preparing product update...";
+    case "compareProducts":
+      return "Comparing products...";
     default:
       return "Working...";
   }

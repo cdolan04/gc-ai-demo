@@ -80,3 +80,58 @@ End-to-end AI chat infrastructure: a user can open the app in Shopify admin, see
 - **The `app/routes/app.additional.tsx` file** still exists from the template but is no longer linked in the nav. Can be deleted in a cleanup pass.
 - **Klaviyo integration** (Phase 5 stretch) is not started — no files created for it yet.
 - **No error boundaries** on the chat or generative UI components yet — that's Phase 6 polish.
+
+---
+
+## Phase 2: Hardening & Gap-Filling
+
+**Date:** 2026-03-24
+
+### What Was Done
+
+Cleanup, hardening, and gap-filling. Made the codebase demo-ready: added the missing ComparisonCard (critical for the Act 3 "hidden gem" demo moment), hardened error handling throughout, expanded the system prompt for the demo narrative, and wrapped generative UI in error boundaries.
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/components/generative-ui/ComparisonCard.tsx` | Side-by-side product comparison (margin, revenue, units sold, reorder rate) with insight text and suggested action — key component for the "hidden gem" demo moment (Act 3) |
+| `app/components/generative-ui/ErrorBoundary.tsx` | React error boundary that wraps each tool result render, preventing a single component crash from killing the chat |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `app/lib/ai/tools.ts` | Added `compareProducts` tool (9th tool); hardened `gql` helper to throw on GraphQL errors/empty data instead of silently returning undefined |
+| `app/lib/ai/system-prompt.ts` | Major expansion: added tool-to-UI mapping guide, "hidden gem" analysis pattern, landing page generation guidance, tone section, period comparison instructions |
+| `app/routes/api.chat.ts` | Added `ANTHROPIC_API_KEY` presence check, `onError` logging callback |
+| `app/routes/api.confirm.ts` | Added try/catch around JSON parse and mutation execution with proper error responses (400/500) |
+| `app/components/chat/MessageRenderer.tsx` | Added ComparisonCard + ErrorBoundary imports, wired `compareProducts` tool to ComparisonCard, wrapped all tool renders in UIErrorBoundary |
+
+### Files Deleted
+
+| File | Reason |
+|------|--------|
+| `app/routes/app.additional.tsx` | Unused template boilerplate; nav link already removed in Phase 1 |
+
+### Deviations from GAMEPLAN
+
+None — this phase was about filling gaps. The ComparisonCard was specified in GAMEPLAN Section 9b but was missing from Phase 1.
+
+### Decisions Made
+
+- **`compareProducts` is a render-only tool**: It doesn't query Shopify — the agent composes comparison data from prior `queryProducts` + `queryOrders` results and passes it to `compareProducts` for rendering. This keeps the tool simple and lets the AI decide what to compare.
+- **Error boundaries at the tool-result level**: Each tool render is independently wrapped, so one bad render doesn't collapse the entire message thread.
+- **GraphQL errors now throw**: The `gql` helper previously silently returned `undefined` on errors. Now it throws with the Shopify error message, which the AI SDK surfaces back to Claude so it can inform the user.
+
+### Issues Encountered
+
+- **Stale React Router types**: Deleting `app.additional.tsx` left orphaned generated types in `.react-router/types/`. Fixed by running `npx react-router typegen` to regenerate.
+
+### What the Next Phase Needs to Know
+
+- **9 tools total now**: 5 read + 1 comparison + 3 write (preview-first).
+- **System prompt is tuned for the demo narrative**: Specifically guides the agent through the Act 3 "hidden gem" pattern (query products for margin → query orders for volume → compareProducts to present the insight → suggest landing page or discount).
+- **Still untested against a real store** — needs `shopify app dev` + seed data to validate end-to-end.
+- **Klaviyo integration** (Phase 5 stretch) is not started.
+- **Build and type-check both pass clean** (excluding Polaris web component types which are harmless).

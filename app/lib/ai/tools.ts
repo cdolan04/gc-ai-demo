@@ -21,6 +21,13 @@ type AdminClient = {
 async function gql(admin: AdminClient, query: string, variables: Record<string, unknown> = {}) {
   const response = await admin.graphql(query, { variables });
   const json = await response.json();
+  if (json.errors && json.errors.length > 0) {
+    const msg = json.errors.map((e: any) => e.message).join("; ");
+    throw new Error(`Shopify GraphQL error: ${msg}`);
+  }
+  if (!json.data) {
+    throw new Error("Shopify returned no data");
+  }
   return json.data;
 }
 
@@ -307,6 +314,53 @@ export function createTools(admin: AdminClient) {
             }),
           ),
         }));
+      },
+    }),
+
+    compareProducts: tool({
+      description:
+        "Compare two or more products side-by-side on margin, revenue, units sold, and reorder rate. Use this when the user asks which products to push harder, or when you want to highlight an undermarketed product. Provide the comparison data you've already gathered from queryProducts and queryOrders.",
+      inputSchema: zodSchema(
+        z.object({
+          products: z
+            .array(
+              z.object({
+                title: z.string().describe("Product title"),
+                price: z.string().describe("Product price"),
+                margin: z.number().describe("Margin percentage"),
+                revenue: z.number().describe("Total revenue from this product"),
+                unitsSold: z.number().describe("Total units sold"),
+                reorderRate: z.number().optional().describe("Reorder rate multiplier (e.g., 2.5x)"),
+                image: z.string().optional().describe("Product image URL"),
+              }),
+            )
+            .describe("Products to compare (2-3)"),
+          insight: z.string().describe("Your analytical insight about the comparison"),
+          suggestedAction: z
+            .string()
+            .optional()
+            .describe("A suggested next action (e.g., 'Want me to draft a landing page for this product?')"),
+        }),
+      ),
+      execute: async (input: {
+        products: Array<{
+          title: string;
+          price: string;
+          margin: number;
+          revenue: number;
+          unitsSold: number;
+          reorderRate?: number;
+          image?: string;
+        }>;
+        insight: string;
+        suggestedAction?: string;
+      }) => {
+        return {
+          status: "comparison",
+          products: input.products,
+          insight: input.insight,
+          suggestedAction: input.suggestedAction,
+        };
       },
     }),
 
