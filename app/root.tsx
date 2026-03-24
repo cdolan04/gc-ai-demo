@@ -15,6 +15,10 @@ export default function App() {
         <Links />
       </head>
       <body>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes pulse { 0%, 80%, 100% { opacity: 0.4; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+        `}} />
         <Outlet />
         <ScrollRestoration />
         <Scripts />
