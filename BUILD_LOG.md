@@ -135,3 +135,49 @@ None — this phase was about filling gaps. The ComparisonCard was specified in 
 - **Still untested against a real store** — needs `shopify app dev` + seed data to validate end-to-end.
 - **Klaviyo integration** (Phase 5 stretch) is not started.
 - **Build and type-check both pass clean** (excluding Polaris web component types which are harmless).
+
+---
+
+## Phase 3: Polish & Ship Readiness
+
+**Date:** 2026-03-24
+
+### What Was Done
+
+Polish and ship readiness. Code-split the Recharts bundle (530KB → 176KB main chunk), added a low-stock alert banner on the dashboard, installed `tsx` for the seed script with an `npm run seed` convenience command, and wrote a complete README with 5-minute setup instructions.
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `app/components/generative-ui/SalesChartInner.tsx` | Recharts implementation extracted into its own module for lazy loading |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `app/components/generative-ui/SalesChart.tsx` | Rewritten as thin wrapper with `lazy()` + `Suspense` — Recharts only loads when a chart renders |
+| `app/routes/app._index.tsx` | Added low-stock alert banner (yellow caution box listing items with < 10 inventory) |
+| `package.json` | Added `tsx` dev dependency, added `"seed"` npm script (`tsx scripts/seed-store.ts`) |
+| `README.md` | Complete rewrite: quick start (5 min), architecture diagram, design decisions, tools table, generative UI component list, tech stack, project structure, production notes |
+
+### Deviations from GAMEPLAN
+
+None.
+
+### Decisions Made
+
+- **Lazy-load Recharts at the component level**: Split into `SalesChart` (thin wrapper with Suspense) and `SalesChartInner` (actual Recharts). Main bundle dropped from 530KB to 176KB. Recharts (359KB) only loads when the AI returns a day-aggregated order chart.
+- **No client-side loading skeleton needed for KPIs**: The home screen loader runs server-side, so KPI data is available on first paint — React Router streams the full page with data already populated. Added a "Loading chart..." fallback only for the lazy-loaded Recharts Suspense boundary.
+- **`npm run seed` convenience script**: Evaluators can seed with `SHOPIFY_STORE=... SHOPIFY_ACCESS_TOKEN=... npm run seed` instead of remembering the `npx tsx` path.
+
+### Issues Encountered
+
+None.
+
+### What the Next Phase Needs to Know
+
+- **Chunk sizes are healthy**: main bundle 176KB, Recharts lazy chunk 359KB (only loaded on demand).
+- **README is evaluator-ready**: 5-minute setup, architecture diagram, design decisions, "what production looks like" section.
+- **Remaining stretch goals**: Klaviyo integration (GAMEPLAN Phase 5), document parsing (GAMEPLAN Section 12). Neither is started.
+- **Everything still needs real-store testing** (`shopify app dev` + seed data).

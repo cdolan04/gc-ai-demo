@@ -143,6 +143,29 @@ export default function Index() {
           />
         </div>
 
+        {/* Low stock alert banner */}
+        {kpi.lowStock.length > 0 && (
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "var(--p-color-bg-caution-subdued, #fff5ea)",
+              borderRadius: "8px",
+              border: "1px solid var(--p-color-border-caution, #ffb800)",
+              marginBottom: "12px",
+              fontSize: "13px",
+              color: "var(--p-color-text-caution, #916a00)",
+            }}
+          >
+            <strong>Low stock:</strong>{" "}
+            {kpi.lowStock.map((item: { title: string; inventory: number }, i: number) => (
+              <span key={item.title}>
+                {item.title} ({item.inventory} left)
+                {i < kpi.lowStock.length - 1 ? ", " : ""}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Sparkline */}
         {sparklineData.length > 0 && (
           <div
