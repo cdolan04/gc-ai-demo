@@ -243,6 +243,70 @@ export function LiquidPreview({ data }: { data: LiquidPreviewData }) {
             </div>
           )}
           {iframeElement}
+
+          {/* Bottom action bar — visible after scrolling through the preview */}
+          {!published && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+                marginTop: "12px",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setIsFullscreen(!isFullscreen);
+                  setIframeLoaded(false);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--p-color-border, #c9cccf)",
+                  background: "var(--p-color-bg-surface, #fff)",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                {isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
+              </button>
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                style={{
+                  padding: "8px 20px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: publishing
+                    ? "var(--p-color-bg-fill-disabled, #bdc1cc)"
+                    : "var(--p-color-bg-fill-brand, #008060)",
+                  color: "#fff",
+                  cursor: publishing ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                }}
+              >
+                {publishing ? "Publishing..." : "Publish Page"}
+              </button>
+            </div>
+          )}
+          {published && (
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "10px 16px",
+                borderRadius: "8px",
+                background: "#e3f1df",
+                color: "#1a7e37",
+                fontSize: "14px",
+                fontWeight: 600,
+                textAlign: "center",
+              }}
+            >
+              Page Published{pageHandle ? ` — /pages/${pageHandle}` : ""}
+            </div>
+          )}
         </div>
       )}
     </div>

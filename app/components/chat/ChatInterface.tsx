@@ -38,7 +38,7 @@ export function ChatInterface({
       hasFired.current = true;
       sendMessage({
         role: "user",
-        parts: [{ type: "text", text: "Give me today's briefing" }],
+        parts: [{ type: "text", text: "Give me this week's briefing" }],
       });
     }
   }, [sendMessage]);
@@ -54,7 +54,7 @@ export function ChatInterface({
       const timer = setTimeout(() => {
         sendMessage({
           role: "user",
-          parts: [{ type: "text", text: "Give me today's briefing" }],
+          parts: [{ type: "text", text: "Give me this week's briefing" }],
         });
       }, 3000);
       return () => clearTimeout(timer);
@@ -225,7 +225,7 @@ export function ChatInterface({
                 : `Error: ${error.message}`}
             </span>
             <button
-              onClick={() => sendPrompt("Give me today's briefing")}
+              onClick={() => sendPrompt("Give me this week's briefing")}
               style={{
                 padding: "6px 12px",
                 borderRadius: "6px",

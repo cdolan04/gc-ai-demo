@@ -30,6 +30,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     tools,
     maxRetries: 5,
     stopWhen: stepCountIs(10),
+    onStepFinish: ({ stepType, toolCalls }) => {
+      if (toolCalls?.length) {
+        console.log(`[AI] Step: ${stepType}, tools called:`, toolCalls.map((t: any) => t.toolName).join(", "));
+      }
+    },
     onError: ({ error }) => {
       console.error("streamText error:", error);
     },
