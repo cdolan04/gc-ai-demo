@@ -181,6 +181,21 @@ This is a take home demo. Here's what the production version requires:
 - **Plugin architecture**: New data sources and action tools as installable plugins, so the platform extends without touching core code.
 - **Theme-integrated pages**: Current landing pages are standalone HTML. Production would generate Shopify theme sections for full design system integration.
 - **Theme-integrated pages**: Expansion beyond Shopify native architecture. This can easily be expanded to sit on top of a company Data Warehouse, or ETL to Data Warehouse could be incorporated in the software and/or agency relationship.
+
+---
+
+## How This Was Built
+
+This project was built with Claude Code as the primary development tool — not as a novelty, but as a deliberate methodology choice.
+
+The process started with [GAMEPLAN.md](GAMEPLAN.md), a 500-line architecture document written before any code. It serves as both a design spec and a context document for Claude Code — design principles, architecture decisions, tool definitions, seed data strategy, and a scripted demo narrative. Claude Code executed against this plan phase by phase.
+
+[BUILD_LOG.md](BUILD_LOG.md) tracks each phase: what was built, what deviated from the plan, decisions made, issues encountered, and context for the next phase. It's the engineering journal for an AI-assisted build.
+
+[claude.md](claude.md) configures Claude Code for this specific project — architecture rules, file locations, conventions, and common task patterns. It's what makes every new Claude Code session productive from the first prompt.
+
+The thesis: **the skill isn't typing code from memory — it's architecting the plan, configuring the tools, and orchestrating execution.** That's the same skill that scales to a team.
+
 ---
 
 ## Project Structure

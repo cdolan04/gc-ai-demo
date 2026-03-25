@@ -32,9 +32,7 @@ pnpm-lock.yaml
 # Temporary dev scripts (not part of the app)
 scripts/add-product-images.ts
 
-# Internal build planning docs (not part of the deliverable)
+# Internal phase-specific build instructions
 CLAUDE-CODE-INSTRUCTIONS.md
 CLAUDE-CODE-PHASE3.md
-GAMEPLAN.md
-BUILD_LOG.md
 
