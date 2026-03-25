@@ -175,13 +175,15 @@ export function createTools(admin: AdminClient) {
           });
         }
 
-        // 3. Hidden gem: high margin + low volume rank
+        // 3. Opportunity: high margin (top quartile) + low volume rank
         const volumeRanked = Object.entries(productVolume).sort((a, b) => b[1] - a[1]);
-        const highMarginProducts = productMargins.filter((p: { margin: number }) => p.margin >= 65);
+        const allMargins = productMargins.map((p: { margin: number }) => p.margin).filter((m: number) => m > 0).sort((a: number, b: number) => b - a);
+        const marginThreshold = allMargins[Math.floor(allMargins.length * 0.25)] || 50;
+        const highMarginProducts = productMargins.filter((p: { margin: number }) => p.margin >= marginThreshold);
         for (const hm of highMarginProducts) {
           const volumeRank = volumeRanked.findIndex(([name]) => name === hm.title);
           const totalRanked = volumeRanked.length;
-          // Hidden gem if in bottom half by volume but high margin
+          // Opportunity if in bottom half by volume but top quartile by margin
           if (volumeRank >= Math.floor(totalRanked / 2) && volumeRank >= 0) {
             insights.push({
               type: "opportunity",
@@ -271,7 +273,7 @@ export function createTools(admin: AdminClient) {
 
     queryOrders: tool({
       description:
-        "Query orders by date range, status, or customer. Also used for analytics — aggregates revenue by day, product, or customer server-side. Use for revenue trends, top products by sales, and period comparisons.",
+        "Query orders with server-side aggregation. ALWAYS use aggregateBy ('day', 'product', or 'customer') for analytics — this renders charts and ranked tables. Only omit aggregateBy when the user explicitly asks to see individual orders, as it renders a large table.",
       inputSchema: zodSchema(
         z.object({
           searchQuery: z

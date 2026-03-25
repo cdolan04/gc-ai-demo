@@ -298,7 +298,7 @@ function OpportunityTile({
         )}
       </div>
       <div style={{ fontSize: "13px", color: "#666" }}>
-        High profit product flying under the radar
+        High margin but low sales volume — worth promoting
       </div>
       <DigDeeperButton type={insight.type} onAction={onAction} />
     </div>

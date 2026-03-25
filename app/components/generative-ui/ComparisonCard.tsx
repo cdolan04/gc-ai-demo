@@ -26,7 +26,7 @@ export function ComparisonCard({
 
   // Determine winner by margin contribution (margin % * revenue)
   const marginContributions = products.map(
-    (p) => (p.margin / 100) * p.revenue,
+    (p) => ((p.margin ?? 0) / 100) * (p.revenue ?? 0),
   );
   const maxContribution = Math.max(...marginContributions);
   const winnerIdx = marginContributions.indexOf(maxContribution);
@@ -146,18 +146,24 @@ export function ComparisonCard({
                 {product.title}
               </div>
 
-              <MetricRow label="Price" value={product.price} />
-              <MetricRow
-                label="Margin"
-                value={`${product.margin.toFixed(0)}%`}
-                highlight={product.margin >= 70}
-              />
-              <MetricRow
-                label="Revenue"
-                value={`$${product.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-              />
-              <MetricRow label="Units Sold" value={product.unitsSold.toLocaleString()} />
-              {product.reorderRate !== undefined && (
+              <MetricRow label="Price" value={product.price ?? "—"} />
+              {product.margin != null && (
+                <MetricRow
+                  label="Margin"
+                  value={`${product.margin.toFixed(0)}%`}
+                  highlight={product.margin === Math.max(...products.map(p => p.margin ?? 0))}
+                />
+              )}
+              {product.revenue != null && (
+                <MetricRow
+                  label="Revenue"
+                  value={`$${product.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                />
+              )}
+              {product.unitsSold != null && (
+                <MetricRow label="Units Sold" value={product.unitsSold.toLocaleString()} />
+              )}
+              {product.reorderRate != null && (
                 <MetricRow
                   label="Reorder Rate"
                   value={`${product.reorderRate.toFixed(1)}x`}

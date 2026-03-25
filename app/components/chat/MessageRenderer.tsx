@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -214,7 +215,7 @@ function ToolResultRenderer({
       if (result.aggregation === "product") {
         return <ProductGrid products={result.data} isAggregated />;
       }
-      return <OrdersTable orders={result.data || result} />;
+      return <CollapsedOrders orders={result.data || result} />;
     case "queryCustomers":
       return <CustomerCard customers={result} />;
     case "queryInventory":
@@ -243,6 +244,60 @@ function ToolResultRenderer({
         </div>
       );
   }
+}
+
+/**
+ * For non-aggregated order queries, show a compact summary instead of a big table.
+ * The AI's text response already contains the analysis — the raw table adds no value.
+ */
+function CollapsedOrders({ orders }: { orders: any[] }) {
+  const [showTable, setShowTable] = useState(false);
+
+  if (!orders || orders.length === 0) {
+    return (
+      <div style={{ padding: "8px 12px", fontSize: "13px", color: "#616161" }}>
+        No orders found.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        borderRadius: "8px",
+        border: "1px solid var(--p-color-border, #e1e3e5)",
+        overflow: "hidden",
+        animation: "fadeSlideIn 0.3s ease-out",
+      }}
+    >
+      <button
+        onClick={() => setShowTable(!showTable)}
+        style={{
+          width: "100%",
+          padding: "10px 14px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "var(--p-color-bg-surface-secondary, #f6f6f7)",
+          border: "none",
+          cursor: "pointer",
+          fontSize: "13px",
+          color: "var(--p-color-text-secondary, #616161)",
+        }}
+      >
+        <span>
+          <strong style={{ color: "var(--p-color-text, #202223)" }}>
+            {orders.length} orders
+          </strong>{" "}
+          analyzed
+        </span>
+        <span style={{ fontSize: "12px", color: "#2c6ecb", fontWeight: 600 }}>
+          {showTable ? "Hide" : "View"}
+        </span>
+      </button>
+      {showTable && <OrdersTable orders={orders} />}
+    </div>
+  );
 }
 
 function getLoadingText(toolName: string): string {

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 interface Order {
   id: string;
   name: string;
@@ -10,7 +12,11 @@ interface Order {
   lineItems: Array<{ name: string; quantity: number }>;
 }
 
+const COLLAPSED_LIMIT = 5;
+
 export function OrdersTable({ orders }: { orders: Order[] }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (!orders || orders.length === 0) {
     return (
       <div style={{ padding: "12px", fontSize: "13px", color: "#616161" }}>
@@ -18,6 +24,9 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
       </div>
     );
   }
+
+  const visibleOrders = expanded ? orders.slice(0, 50) : orders.slice(0, COLLAPSED_LIMIT);
+  const hasMore = orders.length > COLLAPSED_LIMIT;
 
   return (
     <div style={{ overflowX: "auto", borderRadius: "8px", border: "1px solid var(--p-color-border, #e1e3e5)", animation: "fadeSlideIn 0.3s ease-out" }}>
@@ -39,7 +48,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
           </tr>
         </thead>
         <tbody>
-          {orders.slice(0, 50).map((order) => (
+          {visibleOrders.map((order) => (
             <tr
               key={order.id}
               style={{
@@ -64,18 +73,26 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
           ))}
         </tbody>
       </table>
-      {orders.length > 50 && (
-        <div
+      {hasMore && (
+        <button
+          onClick={() => setExpanded(!expanded)}
           style={{
+            width: "100%",
             padding: "8px 12px",
             fontSize: "12px",
-            color: "#616161",
+            fontWeight: 600,
+            color: "#2c6ecb",
             textAlign: "center",
             background: "#f6f6f7",
+            border: "none",
+            borderTop: "1px solid var(--p-color-border, #e1e3e5)",
+            cursor: "pointer",
           }}
         >
-          Showing 50 of {orders.length} orders
-        </div>
+          {expanded
+            ? "Show less"
+            : `Show all ${orders.length} orders`}
+        </button>
       )}
     </div>
   );
