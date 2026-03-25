@@ -181,3 +181,72 @@ None.
 - **README is evaluator-ready**: 5-minute setup, architecture diagram, design decisions, "what production looks like" section.
 - **Remaining stretch goals**: Klaviyo integration (GAMEPLAN Phase 5), document parsing (GAMEPLAN Section 12). Neither is started.
 - **Everything still needs real-store testing** (`shopify app dev` + seed data).
+
+---
+
+## Phase 4: V2 — CTO-Level Upgrade
+
+**Date:** 2026-03-25
+
+### What Was Done
+
+Major UX overhaul to transform the app from "chatbot bolted onto a dashboard" into an AI-first interface. Chat is now the full-page experience, auto-fires a weekly briefing on load, renders markdown, and all generative UI components are polished with animations and interactive actions.
+
+### Dependencies Added
+
+| Package | Purpose |
+|---------|---------|
+| `react-markdown` | Renders markdown in AI text responses (bold, lists, tables, links) |
+| `remark-gfm` | GitHub-flavored markdown support (tables, strikethrough) |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `app/routes/app._index.tsx` | Gutted dashboard (removed KPI cards, sparkline, low-stock banner). Now full-viewport chat with simplified loader providing `welcomeContext` string |
+| `app/components/chat/ChatInterface.tsx` | Accepts `welcomeContext` prop; auto-fires "Give me this week's briefing" on mount with `useRef` guard; suggested prompts moved to render after first AI response; auto-retry on initial failure (3s delay); scroll debounced with `requestAnimationFrame`; friendly error messages with Retry button |
+| `app/components/chat/MessageRenderer.tsx` | Added `react-markdown` with Polaris-styled component overrides; accepts `onSendPrompt` callback threaded to KPIDashboard and ComparisonCard; fixed tool result state detection (checks for `output` presence instead of `state === "result"` — AI SDK v6 compat) |
+| `app/lib/ai/system-prompt.ts` | Added "CRITICAL: Always Use Tools" section; response structure rules (tool first, 1-2 sentences, next action); `welcomeContext` parameter support; `processed_at` guidance for date queries; clarified that confirm buttons handle real Shopify mutations |
+| `app/lib/ai/tools.ts` | `getStoreSummary`: fetches prior-period orders for trend comparison, computes revenue trend %, inventory velocity (days left), hidden gem detection; returns `insights` array. `queryOrders`: uses `processedAt` for date aggregation. Both tools use `processed_at` search filters |
+| `app/lib/ai/shopify-queries.ts` | Added `processedAt` field to `GET_ORDERS` query |
+| `app/routes/api.chat.ts` | Increased `maxRetries` to 5; added `onStepFinish` logging for tool call debugging |
+| `app/root.tsx` | Added `fadeSlideIn` CSS keyframe animation |
+| `app/components/generative-ui/KPIDashboard.tsx` | Complete redesign: insight-driven briefing cards (color-coded by sentiment: green/amber/blue) with "Dig deeper" buttons; compact metric pills row; accepts `onAction` prop |
+| `app/components/generative-ui/ComparisonCard.tsx` | Added "Recommended" badge on winner product; green top border; `suggestedAction` is now a clickable button; margin contribution bars; accepts `onAction` prop |
+| `app/components/generative-ui/ProductGrid.tsx` | Aggregated view: rank numbers (#1, #2...), proportional revenue bars; fadeSlideIn animation |
+| `app/components/generative-ui/LiquidPreview.tsx` | Added fullscreen toggle, iframe loading state, page URL after publish, **bottom action bar** with Publish button (visible after scrolling through preview) |
+| `app/components/generative-ui/DiscountCard.tsx` | "Applies to" moved into green header for prominence; fadeSlideIn animation |
+| `app/components/generative-ui/OrdersTable.tsx` | fadeSlideIn animation |
+| `app/components/generative-ui/CustomerCard.tsx` | fadeSlideIn animation |
+| `app/components/generative-ui/InventoryStatus.tsx` | fadeSlideIn animation |
+| `app/components/generative-ui/SalesChartInner.tsx` | fadeSlideIn animation |
+| `app/components/generative-ui/ProductUpdateConfirm.tsx` | fadeSlideIn animation |
+
+### Deviations from GAMEPLAN
+
+1. **Removed static dashboard entirely**: GAMEPLAN Section 5 specifies KPI cards + sparkline on the home screen. V2 removes them completely — the auto-fired briefing via `getStoreSummary` replaces them with richer, insight-driven content inside the chat.
+2. **`processed_at` vs `created_at`**: Seed script backdates orders using `processedAt`, but all queries were using `createdAt` (which was the actual draft order creation date). Switched all date filtering and aggregation to `processed_at`/`processedAt`.
+
+### Decisions Made
+
+- **Chat-first layout**: Full viewport height, no dashboard chrome. The AI briefing replaces static tiles that duplicate native Shopify analytics.
+- **Auto-fire with retry**: Initial briefing fires automatically with one auto-retry on failure (3s delay). Manual retry button as fallback.
+- **Tool output detection over state string**: AI SDK v6 tool parts don't reliably set `state === "result"`. Changed to check for `output` presence instead — more robust.
+- **Bottom publish button on LiquidPreview**: The preview iframe is tall; users scroll past the header button. Duplicated at the bottom.
+- **`maxRetries: 5`**: Anthropic API returns 529 (overloaded) frequently on Sonnet 4. Default 3 retries wasn't enough.
+
+### Issues Encountered
+
+1. **AI SDK v6 tool state mismatch**: Tool parts showed perpetual loading spinners because `state !== "result"` even after completion. Fixed by checking `toolPart.output !== undefined` instead.
+2. **`processed_at` vs `created_at`**: All seeded orders appeared on a single day in charts. Root cause: seed script uses `processedAt` for backdating, but queries filtered on `createdAt`.
+3. **Anthropic 529 overloaded errors**: Frequent during testing. Mitigated with `maxRetries: 5`, client-side auto-retry, and friendly error message.
+4. **AI hallucinating it can't publish**: When user typed "publish" in chat, the AI said it couldn't create pages. Fixed by updating system prompt to explicitly state confirm buttons handle real mutations.
+5. **react-markdown bundle size**: Main chunk grew from 176KB to 337KB. Acceptable tradeoff for proper markdown rendering.
+
+### What the Next Phase Needs to Know
+
+- **All 3 write tools are functional**: Landing pages publish via `pageCreate` + `pageUpdate`, discount codes via `discountCodeBasicCreate`, product updates via `productUpdate`. All preview-first with confirm buttons.
+- **Bundle sizes**: main 337KB, Recharts lazy 359KB.
+- **Tested against real store**: Briefing, charts, product analysis, landing page generation, and date-range queries all work with seeded data.
+- **Remaining stretch goals**: Klaviyo integration (GAMEPLAN Phase 5) not started.
+- **Product images**: Products currently have no images. Manual upload in Shopify admin will improve ProductGrid and landing page previews.
