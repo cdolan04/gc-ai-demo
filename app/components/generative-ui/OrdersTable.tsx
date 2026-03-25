@@ -20,7 +20,7 @@ export function OrdersTable({ orders }: { orders: Order[] }) {
   }
 
   return (
-    <div style={{ overflowX: "auto", borderRadius: "8px", border: "1px solid var(--p-color-border, #e1e3e5)" }}>
+    <div style={{ overflowX: "auto", borderRadius: "8px", border: "1px solid var(--p-color-border, #e1e3e5)", animation: "fadeSlideIn 0.3s ease-out" }}>
       <table
         style={{
           width: "100%",

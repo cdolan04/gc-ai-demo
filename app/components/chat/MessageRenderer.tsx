@@ -1,4 +1,6 @@
 import type { UIMessage } from "ai";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { KPIDashboard } from "../generative-ui/KPIDashboard";
 import { ProductGrid } from "../generative-ui/ProductGrid";
 import { OrdersTable } from "../generative-ui/OrdersTable";
@@ -13,9 +15,10 @@ import { UIErrorBoundary } from "../generative-ui/ErrorBoundary";
 
 interface MessageRendererProps {
   message: UIMessage;
+  onSendPrompt?: (text: string) => void;
 }
 
-export function MessageRenderer({ message }: MessageRendererProps) {
+export function MessageRenderer({ message, onSendPrompt }: MessageRendererProps) {
   const { parts } = message;
 
   if (!parts || parts.length === 0) {
@@ -37,13 +40,18 @@ export function MessageRenderer({ message }: MessageRendererProps) {
               ? toolPart.toolName
               : part.type.replace("tool-", "");
 
+          // AI SDK v6: output is present when the tool has completed,
+          // regardless of what the state string is
+          const hasResult = toolPart.output !== undefined;
+
           return (
             <UIErrorBoundary key={index}>
               <ToolResultRenderer
                 toolName={toolName}
-                state={toolPart.state}
-                result={toolPart.state === "result" ? toolPart.output : undefined}
+                state={hasResult ? "result" : (toolPart.state || "pending")}
+                result={hasResult ? toolPart.output : undefined}
                 args={toolPart.input}
+                onSendPrompt={onSendPrompt}
               />
             </UIErrorBoundary>
           );
@@ -64,10 +72,89 @@ function TextBubble({ text }: { text: string }) {
         fontSize: "14px",
         lineHeight: "1.6",
         color: "var(--p-color-text, #202223)",
-        whiteSpace: "pre-wrap",
       }}
     >
-      {text}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => (
+            <p style={{ margin: "0 0 8px 0" }}>{children}</p>
+          ),
+          strong: ({ children }) => (
+            <strong style={{ fontWeight: 600 }}>{children}</strong>
+          ),
+          ul: ({ children }) => (
+            <ul style={{ margin: "4px 0", paddingLeft: "20px" }}>{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol style={{ margin: "4px 0", paddingLeft: "20px" }}>{children}</ol>
+          ),
+          li: ({ children }) => (
+            <li style={{ marginBottom: "2px" }}>{children}</li>
+          ),
+          code: ({ children }) => (
+            <code
+              style={{
+                background: "var(--p-color-bg-surface-secondary, #f6f6f7)",
+                padding: "1px 4px",
+                borderRadius: "4px",
+                fontSize: "13px",
+              }}
+            >
+              {children}
+            </code>
+          ),
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "var(--p-color-text-brand, #008060)",
+                textDecoration: "underline",
+              }}
+            >
+              {children}
+            </a>
+          ),
+          table: ({ children }) => (
+            <table
+              style={{
+                borderCollapse: "collapse",
+                width: "100%",
+                fontSize: "13px",
+                margin: "8px 0",
+              }}
+            >
+              {children}
+            </table>
+          ),
+          th: ({ children }) => (
+            <th
+              style={{
+                borderBottom: "2px solid var(--p-color-border, #e1e3e5)",
+                padding: "6px 8px",
+                textAlign: "left",
+                fontWeight: 600,
+              }}
+            >
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td
+              style={{
+                borderBottom: "1px solid var(--p-color-border, #e1e3e5)",
+                padding: "6px 8px",
+              }}
+            >
+              {children}
+            </td>
+          ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -77,11 +164,13 @@ function ToolResultRenderer({
   state,
   result,
   args,
+  onSendPrompt,
 }: {
   toolName: string;
   state: string;
   result: any;
   args: any;
+  onSendPrompt?: (text: string) => void;
 }) {
   if (state !== "result") {
     return (
@@ -115,7 +204,7 @@ function ToolResultRenderer({
 
   switch (toolName) {
     case "getStoreSummary":
-      return <KPIDashboard data={result} />;
+      return <KPIDashboard data={result} onAction={onSendPrompt} />;
     case "queryProducts":
       return <ProductGrid products={result} />;
     case "queryOrders":
@@ -137,7 +226,7 @@ function ToolResultRenderer({
     case "updateProductCopy":
       return <ProductUpdateConfirm data={result} />;
     case "compareProducts":
-      return <ComparisonCard data={result} />;
+      return <ComparisonCard data={result} onAction={onSendPrompt} />;
     default:
       return (
         <div

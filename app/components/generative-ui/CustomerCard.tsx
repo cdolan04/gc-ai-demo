@@ -21,7 +21,7 @@ export function CustomerCard({ customers }: { customers: Customer[] }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px", animation: "fadeSlideIn 0.3s ease-out" }}>
       {customers.slice(0, 20).map((customer) => (
         <div
           key={customer.id}

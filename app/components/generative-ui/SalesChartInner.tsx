@@ -30,6 +30,7 @@ export default function SalesChartInner({ data }: { data: DayData[] }) {
         borderRadius: "10px",
         border: "1px solid var(--p-color-border, #e1e3e5)",
         padding: "16px",
+        animation: "fadeSlideIn 0.3s ease-out",
       }}
     >
       <div

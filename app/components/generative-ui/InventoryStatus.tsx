@@ -28,7 +28,7 @@ export function InventoryStatus({ items }: { items: InventoryItem[] }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", animation: "fadeSlideIn 0.3s ease-out" }}>
       {Object.entries(byProduct).map(([productTitle, variants]) => {
         const totalQty = variants.reduce((s, v) => s + v.inventoryQuantity, 0);
         const level = totalQty > 50 ? "green" : totalQty > 10 ? "yellow" : "red";

@@ -26,8 +26,10 @@ export function ProductGrid({
   isAggregated?: boolean;
 }) {
   if (isAggregated) {
+    const maxRevenue = Math.max(...products.map((p) => p.revenue || 0), 1);
+
     return (
-      <div style={{ overflowX: "auto" }}>
+      <div style={{ overflowX: "auto", animation: "fadeSlideIn 0.3s ease-out" }}>
         <table
           style={{
             width: "100%",
@@ -41,6 +43,7 @@ export function ProductGrid({
                 borderBottom: "2px solid var(--p-color-border, #e1e3e5)",
               }}
             >
+              <th style={{ ...thStyle, width: "32px" }}>#</th>
               <th style={thStyle}>Product</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Revenue</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Units Sold</th>
@@ -48,21 +51,57 @@ export function ProductGrid({
             </tr>
           </thead>
           <tbody>
-            {products.map((p, i) => (
-              <tr
-                key={i}
-                style={{
-                  borderBottom: "1px solid var(--p-color-border, #e1e3e5)",
-                }}
-              >
-                <td style={tdStyle}>{p.name || p.title}</td>
-                <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
-                  ${p.revenue?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </td>
-                <td style={{ ...tdStyle, textAlign: "right" }}>{p.unitsSold}</td>
-                <td style={{ ...tdStyle, textAlign: "right" }}>{p.orderCount}</td>
-              </tr>
-            ))}
+            {products.map((p, i) => {
+              const revPct = ((p.revenue || 0) / maxRevenue) * 100;
+              return (
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid var(--p-color-border, #e1e3e5)",
+                  }}
+                >
+                  <td
+                    style={{
+                      ...tdStyle,
+                      fontWeight: 700,
+                      color: i < 3 ? "#008060" : "#8c9196",
+                      fontSize: "12px",
+                    }}
+                  >
+                    #{i + 1}
+                  </td>
+                  <td style={tdStyle}>{p.name || p.title}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                      <div
+                        style={{
+                          width: "60px",
+                          height: "6px",
+                          borderRadius: "3px",
+                          background: "#e1e3e5",
+                          overflow: "hidden",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${revPct}%`,
+                            borderRadius: "3px",
+                            background: i === 0 ? "#008060" : "#8c9196",
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontWeight: 600 }}>
+                        ${p.revenue?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>{p.unitsSold}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>{p.orderCount}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -75,6 +114,7 @@ export function ProductGrid({
         display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
         gap: "10px",
+        animation: "fadeSlideIn 0.3s ease-out",
       }}
     >
       {products.map((product, i) => {

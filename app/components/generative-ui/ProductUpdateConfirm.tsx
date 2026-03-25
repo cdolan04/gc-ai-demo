@@ -53,6 +53,7 @@ export function ProductUpdateConfirm({ data }: { data: ProductUpdateData }) {
         borderRadius: "10px",
         overflow: "hidden",
         background: "var(--p-color-bg-surface, #fff)",
+        animation: "fadeSlideIn 0.3s ease-out",
       }}
     >
       <div

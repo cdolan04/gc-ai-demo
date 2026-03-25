@@ -64,6 +64,7 @@ export function DiscountCard({ data }: { data: DiscountData }) {
         borderRadius: "10px",
         overflow: "hidden",
         background: "var(--p-color-bg-surface, #fff)",
+        animation: "fadeSlideIn 0.3s ease-out",
       }}
     >
       <div
@@ -90,11 +91,11 @@ export function DiscountCard({ data }: { data: DiscountData }) {
         <div style={{ fontSize: "16px", fontWeight: 500, marginTop: "4px" }}>
           {displayValue}
         </div>
+        <div style={{ fontSize: "13px", opacity: 0.9, marginTop: "4px" }}>
+          Applies to: {data.appliesTo}
+        </div>
       </div>
       <div style={{ padding: "14px 16px" }}>
-        <div style={{ fontSize: "13px", color: "#616161", marginBottom: "4px" }}>
-          <strong>Applies to:</strong> {data.appliesTo}
-        </div>
         {data.expiresAt && (
           <div style={{ fontSize: "13px", color: "#616161", marginBottom: "4px" }}>
             <strong>Expires:</strong>{" "}

@@ -49,10 +49,21 @@ export function createTools(admin: AdminClient) {
         since.setDate(since.getDate() - daysBack);
         const sinceStr = since.toISOString();
 
-        const [productsCount, orders, lowStockProducts] = await Promise.all([
+        // Prior period for trend comparison
+        const priorEnd = new Date(since);
+        const priorStart = new Date(priorEnd);
+        priorStart.setDate(priorStart.getDate() - daysBack);
+        const priorStartStr = priorStart.toISOString();
+        const priorEndStr = priorEnd.toISOString();
+
+        const [productsCount, orders, priorOrders, products] = await Promise.all([
           gql(admin, GET_PRODUCTS_COUNT),
           gql(admin, GET_ORDERS, {
-            query: `created_at:>='${sinceStr}'`,
+            query: `processed_at:>='${sinceStr}'`,
+            first: 250,
+          }),
+          gql(admin, GET_ORDERS, {
+            query: `processed_at:>='${priorStartStr}' AND processed_at:<'${priorEndStr}'`,
             first: 250,
           }),
           gql(admin, GET_PRODUCTS, {
@@ -70,12 +81,99 @@ export function createTools(admin: AdminClient) {
         const orderCount = orderEdges.length;
         const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
 
-        const lowStock = lowStockProducts.products.edges
+        // Prior period revenue
+        const priorOrderEdges = priorOrders.orders.edges;
+        const priorRevenue = priorOrderEdges.reduce(
+          (sum: number, { node }: any) =>
+            sum + parseFloat(node.totalPriceSet.shopMoney.amount),
+          0,
+        );
+
+        // Revenue trend
+        const revenueTrendPercent =
+          priorRevenue > 0
+            ? Math.round(((totalRevenue - priorRevenue) / priorRevenue) * 1000) / 10
+            : 0;
+
+        // Products analysis
+        const productEdges = products.products.edges;
+        const lowStock = productEdges
           .filter(({ node }: any) => node.totalInventory < 10 && node.totalInventory >= 0)
           .map(({ node }: any) => ({
             title: node.title,
             inventory: node.totalInventory,
           }));
+
+        // Compute product margins for hidden gem detection
+        const productMargins = productEdges.map(({ node }: any) => {
+          const variant = node.variants?.edges?.[0]?.node;
+          const price = variant ? parseFloat(variant.price) : 0;
+          const cost = variant?.inventoryItem?.unitCost
+            ? parseFloat(variant.inventoryItem.unitCost.amount)
+            : 0;
+          const margin = price > 0 && cost > 0 ? ((price - cost) / price) * 100 : 0;
+          return { title: node.title, margin, inventory: node.totalInventory };
+        });
+
+        // Count order volume per product from current period
+        const productVolume: Record<string, number> = {};
+        for (const { node } of orderEdges) {
+          for (const { node: li } of (node.lineItems?.edges || [])) {
+            productVolume[li.name] = (productVolume[li.name] || 0) + li.quantity;
+          }
+        }
+
+        // Build insights
+        const insights: Array<{ type: string; label: string; value: string; detail: string; sentiment: string }> = [];
+
+        // 1. Revenue trend
+        if (priorRevenue > 0) {
+          insights.push({
+            type: "trend",
+            label: "Revenue Trend",
+            value: `${revenueTrendPercent > 0 ? "+" : ""}${revenueTrendPercent.toFixed(1)}%`,
+            detail: `vs prior ${daysBack} days ($${Math.round(priorRevenue).toLocaleString()} → $${Math.round(totalRevenue).toLocaleString()})`,
+            sentiment: revenueTrendPercent >= 0 ? "positive" : "negative",
+          });
+        }
+
+        // 2. Low stock alerts with velocity context
+        if (lowStock.length > 0) {
+          const lowStockNames = lowStock.map((ls: { title: string; inventory: number }) => {
+            const vol = productVolume[ls.title] || 0;
+            const dailyRate = vol / daysBack;
+            const daysLeft = dailyRate > 0 ? Math.round(ls.inventory / dailyRate) : null;
+            return daysLeft !== null
+              ? `${ls.title} (~${daysLeft}d left)`
+              : `${ls.title} (${ls.inventory} units)`;
+          });
+          insights.push({
+            type: "inventory",
+            label: "Stock Alert",
+            value: `${lowStock.length} item${lowStock.length > 1 ? "s" : ""} critically low`,
+            detail: lowStockNames.join(", "),
+            sentiment: "warning",
+          });
+        }
+
+        // 3. Hidden gem: high margin + low volume rank
+        const volumeRanked = Object.entries(productVolume).sort((a, b) => b[1] - a[1]);
+        const highMarginProducts = productMargins.filter((p: { margin: number }) => p.margin >= 65);
+        for (const hm of highMarginProducts) {
+          const volumeRank = volumeRanked.findIndex(([name]) => name === hm.title);
+          const totalProducts = volumeRanked.length;
+          // Hidden gem if in bottom half by volume but high margin
+          if (volumeRank >= Math.floor(totalProducts / 2) && volumeRank >= 0) {
+            insights.push({
+              type: "opportunity",
+              label: "Hidden Gem",
+              value: hm.title,
+              detail: `${hm.margin.toFixed(0)}% margin but only #${volumeRank + 1} by volume — undermarketed`,
+              sentiment: "info",
+            });
+            break; // only show top hidden gem
+          }
+        }
 
         return {
           totalProducts: productsCount.productsCount.count,
@@ -84,6 +182,9 @@ export function createTools(admin: AdminClient) {
           totalRevenue: Math.round(totalRevenue * 100) / 100,
           averageOrderValue: Math.round(aov * 100) / 100,
           lowStockAlerts: lowStock,
+          priorPeriodRevenue: Math.round(priorRevenue * 100) / 100,
+          revenueTrendPercent,
+          insights,
         };
       },
     }),
@@ -152,7 +253,7 @@ export function createTools(admin: AdminClient) {
           searchQuery: z
             .string()
             .optional()
-            .describe("Shopify order search query (e.g., 'created_at:>=2024-01-01', 'financial_status:paid')."),
+            .describe("Shopify order search query (e.g., 'processed_at:>=2024-01-01', 'financial_status:paid'). IMPORTANT: Use 'processed_at' (not 'created_at') for date filtering."),
           first: z
             .number()
             .optional()
@@ -172,7 +273,7 @@ export function createTools(admin: AdminClient) {
         const orders = data.orders.edges.map(({ node }: any) => ({
           id: node.id,
           name: node.name,
-          createdAt: node.createdAt,
+          createdAt: node.processedAt || node.createdAt,
           financialStatus: node.displayFinancialStatus,
           fulfillmentStatus: node.displayFulfillmentStatus,
           total: parseFloat(node.totalPriceSet.shopMoney.amount),

@@ -48,6 +48,7 @@ export const GET_ORDERS = `#graphql
           id
           name
           createdAt
+          processedAt
           displayFinancialStatus
           displayFulfillmentStatus
           totalPriceSet { shopMoney { amount currencyCode } }

@@ -28,6 +28,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     system: buildSystemPrompt(),
     messages: await convertToModelMessages(messages),
     tools,
+    maxRetries: 5,
     stopWhen: stepCountIs(10),
     onError: ({ error }) => {
       console.error("streamText error:", error);

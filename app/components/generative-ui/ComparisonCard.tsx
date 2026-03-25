@@ -15,8 +15,21 @@ interface ComparisonData {
   suggestedAction?: string;
 }
 
-export function ComparisonCard({ data }: { data: ComparisonData }) {
+export function ComparisonCard({
+  data,
+  onAction,
+}: {
+  data: ComparisonData;
+  onAction?: (text: string) => void;
+}) {
   const products = data.products || [];
+
+  // Determine winner by margin contribution (margin % * revenue)
+  const marginContributions = products.map(
+    (p) => (p.margin / 100) * p.revenue,
+  );
+  const maxContribution = Math.max(...marginContributions);
+  const winnerIdx = marginContributions.indexOf(maxContribution);
 
   return (
     <div
@@ -25,6 +38,7 @@ export function ComparisonCard({ data }: { data: ComparisonData }) {
         borderRadius: "10px",
         overflow: "hidden",
         background: "var(--p-color-bg-surface, #fff)",
+        animation: "fadeSlideIn 0.3s ease-out",
       }}
     >
       {/* Header */}
@@ -48,68 +62,112 @@ export function ComparisonCard({ data }: { data: ComparisonData }) {
           gap: "0",
         }}
       >
-        {products.map((product, i) => (
-          <div
-            key={product.title}
-            style={{
-              padding: "16px",
-              borderRight:
-                i < products.length - 1
-                  ? "1px solid var(--p-color-border, #e1e3e5)"
-                  : "none",
-            }}
-          >
-            {product.image && (
-              <div
-                style={{
-                  height: "80px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: "10px",
-                  background: "#f6f6f7",
-                  borderRadius: "6px",
-                  overflow: "hidden",
-                }}
-              >
-                <img
-                  src={product.image}
-                  alt={product.title}
-                  style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
-                />
-              </div>
-            )}
+        {products.map((product, i) => {
+          const isWinner = i === winnerIdx && products.length > 1;
+          const contribution = marginContributions[i];
+          const contributionPct = maxContribution > 0 ? (contribution / maxContribution) * 100 : 0;
+
+          return (
             <div
+              key={product.title}
               style={{
-                fontWeight: 600,
-                fontSize: "14px",
-                marginBottom: "10px",
-                color: "var(--p-color-text, #202223)",
+                padding: "16px",
+                borderRight:
+                  i < products.length - 1
+                    ? "1px solid var(--p-color-border, #e1e3e5)"
+                    : "none",
+                borderTop: isWinner ? "3px solid #008060" : "3px solid transparent",
+                position: "relative",
               }}
             >
-              {product.title}
-            </div>
+              {isWinner && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "8px",
+                    right: "8px",
+                    padding: "2px 8px",
+                    borderRadius: "10px",
+                    background: "#e3f1df",
+                    color: "#1a7e37",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Recommended
+                </div>
+              )}
 
-            <MetricRow label="Price" value={product.price} />
-            <MetricRow
-              label="Margin"
-              value={`${product.margin.toFixed(0)}%`}
-              highlight={product.margin >= 70}
-            />
-            <MetricRow
-              label="Revenue"
-              value={`$${product.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-            />
-            <MetricRow label="Units Sold" value={product.unitsSold.toLocaleString()} />
-            {product.reorderRate !== undefined && (
+              {product.image && (
+                <div
+                  style={{
+                    height: "80px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "10px",
+                    background: "#f6f6f7",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={product.image}
+                    alt={product.title}
+                    style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+                  />
+                </div>
+              )}
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  marginBottom: "10px",
+                  color: "var(--p-color-text, #202223)",
+                }}
+              >
+                {product.title}
+              </div>
+
+              <MetricRow label="Price" value={product.price} />
               <MetricRow
-                label="Reorder Rate"
-                value={`${product.reorderRate.toFixed(1)}x`}
-                highlight={product.reorderRate >= 2}
+                label="Margin"
+                value={`${product.margin.toFixed(0)}%`}
+                highlight={product.margin >= 70}
               />
-            )}
-          </div>
-        ))}
+              <MetricRow
+                label="Revenue"
+                value={`$${product.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+              />
+              <MetricRow label="Units Sold" value={product.unitsSold.toLocaleString()} />
+              {product.reorderRate !== undefined && (
+                <MetricRow
+                  label="Reorder Rate"
+                  value={`${product.reorderRate.toFixed(1)}x`}
+                  highlight={product.reorderRate >= 2}
+                />
+              )}
+
+              {/* Margin contribution bar */}
+              <div style={{ marginTop: "8px" }}>
+                <div style={{ fontSize: "11px", color: "#616161", marginBottom: "3px" }}>
+                  Margin contribution
+                </div>
+                <div style={{ height: "6px", borderRadius: "3px", background: "#e1e3e5", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${contributionPct}%`,
+                      borderRadius: "3px",
+                      background: isWinner ? "#008060" : "#8c9196",
+                      transition: "width 0.3s",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Insight */}
@@ -130,16 +188,38 @@ export function ComparisonCard({ data }: { data: ComparisonData }) {
           {data.insight}
         </div>
         {data.suggestedAction && (
-          <div
-            style={{
-              fontSize: "13px",
-              fontWeight: 600,
-              marginTop: "6px",
-              color: "var(--p-color-text-brand, #008060)",
-            }}
-          >
-            {data.suggestedAction}
-          </div>
+          onAction ? (
+            <button
+              onClick={() => onAction(data.suggestedAction!)}
+              style={{
+                marginTop: "8px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                border: "none",
+                background: "var(--p-color-bg-fill-brand, #008060)",
+                color: "#fff",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 600,
+                transition: "opacity 0.15s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.9")}
+              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              {data.suggestedAction}
+            </button>
+          ) : (
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                marginTop: "6px",
+                color: "var(--p-color-text-brand, #008060)",
+              }}
+            >
+              {data.suggestedAction}
+            </div>
+          )
         )}
       </div>
     </div>

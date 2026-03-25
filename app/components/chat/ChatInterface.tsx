@@ -3,7 +3,11 @@ import { DefaultChatTransport } from "ai";
 import { useCallback, useRef, useEffect, useState, useMemo } from "react";
 import { MessageRenderer } from "./MessageRenderer";
 
-export function ChatInterface() {
+export function ChatInterface({
+  welcomeContext,
+}: {
+  welcomeContext?: string;
+}) {
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
     [],
@@ -14,15 +18,48 @@ export function ChatInterface() {
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasFired = useRef(false);
+  const retryCount = useRef(0);
   const [inputValue, setInputValue] = useState("");
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
   }, []);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Auto-fire briefing on first mount
+  useEffect(() => {
+    if (!hasFired.current) {
+      hasFired.current = true;
+      sendMessage({
+        role: "user",
+        parts: [{ type: "text", text: "Give me today's briefing" }],
+      });
+    }
+  }, [sendMessage]);
+
+  // Auto-retry once if the initial briefing fails (e.g. API overloaded)
+  useEffect(() => {
+    if (
+      error &&
+      retryCount.current < 1 &&
+      messages.filter((m) => m.role === "user").length <= 1
+    ) {
+      retryCount.current += 1;
+      const timer = setTimeout(() => {
+        sendMessage({
+          role: "user",
+          parts: [{ type: "text", text: "Give me today's briefing" }],
+        });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, messages, sendMessage]);
 
   const isLoading = status === "streaming" || status === "submitted";
 
@@ -56,11 +93,17 @@ export function ChatInterface() {
   );
 
   const suggestedPrompts = [
-    "How did we do this week?",
     "Which products drive the most revenue?",
     "Are there products I should push harder?",
+    "Show me customer segments",
     "Show me low stock items",
   ];
+
+  // Show suggested prompts after the first assistant response, before user sends a second message
+  const showSuggestions =
+    messages.length >= 2 &&
+    messages.filter((m) => m.role === "user").length <= 1 &&
+    !isLoading;
 
   // Helper to extract text content from a UIMessage
   const getMessageText = (message: UIMessage): string => {
@@ -71,7 +114,7 @@ export function ChatInterface() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {/* Messages area */}
       <div
         style={{
@@ -83,51 +126,6 @@ export function ChatInterface() {
           gap: "16px",
         }}
       >
-        {messages.length === 0 && (
-          <div style={{ padding: "24px 0" }}>
-            <p
-              style={{
-                fontSize: "14px",
-                color: "var(--p-color-text-secondary, #616161)",
-                marginBottom: "16px",
-                lineHeight: "1.5",
-              }}
-            >
-              I'm your store analyst. I pulled today's snapshot above — ask me
-              anything to dig deeper, or tell me to take action like creating a
-              landing page or discount code.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {suggestedPrompts.map((prompt) => (
-                <button
-                  key={prompt}
-                  onClick={() => sendPrompt(prompt)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--p-color-border, #c9cccf)",
-                    background: "var(--p-color-bg-surface, #fff)",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    color: "var(--p-color-text, #202223)",
-                    transition: "background 0.15s",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.currentTarget.style.background =
-                      "var(--p-color-bg-surface-hover, #f1f2f3)")
-                  }
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.background =
-                      "var(--p-color-bg-surface, #fff)")
-                  }
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {messages.map((message) => (
           <div
             key={message.id}
@@ -154,11 +152,43 @@ export function ChatInterface() {
               </div>
             ) : (
               <div style={{ maxWidth: "100%", width: "100%" }}>
-                <MessageRenderer message={message} />
+                <MessageRenderer message={message} onSendPrompt={sendPrompt} />
               </div>
             )}
           </div>
         ))}
+
+        {/* Suggested prompts after first AI response */}
+        {showSuggestions && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", padding: "4px 0" }}>
+            {suggestedPrompts.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => sendPrompt(prompt)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--p-color-border, #c9cccf)",
+                  background: "var(--p-color-bg-surface, #fff)",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  color: "var(--p-color-text, #202223)",
+                  transition: "background 0.15s",
+                }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background =
+                    "var(--p-color-bg-surface-hover, #f1f2f3)")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.background =
+                    "var(--p-color-bg-surface, #fff)")
+                }
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
 
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div
@@ -183,9 +213,33 @@ export function ChatInterface() {
               borderRadius: "8px",
               color: "var(--p-color-text-critical, #d72c0d)",
               fontSize: "13px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "8px",
             }}
           >
-            Error: {error.message}
+            <span>
+              {error.message.toLowerCase().includes("overloaded")
+                ? "The AI service is temporarily busy. Please try again in a moment."
+                : `Error: ${error.message}`}
+            </span>
+            <button
+              onClick={() => sendPrompt("Give me today's briefing")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--p-color-text-critical, #d72c0d)",
+                background: "transparent",
+                color: "var(--p-color-text-critical, #d72c0d)",
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Retry
+            </button>
           </div>
         )}
 
