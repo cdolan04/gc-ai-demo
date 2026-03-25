@@ -123,8 +123,8 @@ export function createTools(admin: AdminClient) {
           }
         }
 
-        // Build insights
-        const insights: Array<{ type: string; label: string; value: string; detail: string; sentiment: string }> = [];
+        // Build insights (structured fields power rich tile visuals in KPIDashboard)
+        const insights: Array<Record<string, any>> = [];
 
         // 1. Revenue trend
         if (priorRevenue > 0) {
@@ -134,11 +134,25 @@ export function createTools(admin: AdminClient) {
             value: `${revenueTrendPercent > 0 ? "+" : ""}${revenueTrendPercent.toFixed(1)}%`,
             detail: `vs prior ${daysBack} days ($${Math.round(priorRevenue).toLocaleString()} → $${Math.round(totalRevenue).toLocaleString()})`,
             sentiment: revenueTrendPercent >= 0 ? "positive" : "negative",
+            // Structured fields for TrendTile
+            percentChange: revenueTrendPercent,
+            currentValue: Math.round(totalRevenue * 100) / 100,
+            previousValue: Math.round(priorRevenue * 100) / 100,
+            periodLabel: `vs prior ${daysBack} days`,
           });
         }
 
         // 2. Low stock alerts with velocity context
         if (lowStock.length > 0) {
+          // Pick the most critical item (lowest stock) for the structured tile
+          const criticalItem = lowStock.reduce(
+            (min: any, ls: any) => (ls.inventory < min.inventory ? ls : min),
+            lowStock[0],
+          );
+          const critVol = productVolume[criticalItem.title] || 0;
+          const critDailyRate = critVol / daysBack;
+          const critDaysLeft = critDailyRate > 0 ? Math.round(criticalItem.inventory / critDailyRate) : null;
+
           const lowStockNames = lowStock.map((ls: { title: string; inventory: number }) => {
             const vol = productVolume[ls.title] || 0;
             const dailyRate = vol / daysBack;
@@ -153,6 +167,11 @@ export function createTools(admin: AdminClient) {
             value: `${lowStock.length} item${lowStock.length > 1 ? "s" : ""} critically low`,
             detail: lowStockNames.join(", "),
             sentiment: "warning",
+            // Structured fields for AlertTile
+            productName: criticalItem.title,
+            currentStock: criticalItem.inventory,
+            daysRemaining: critDaysLeft,
+            dailyVelocity: Math.round(critDailyRate * 100) / 100,
           });
         }
 
@@ -161,15 +180,20 @@ export function createTools(admin: AdminClient) {
         const highMarginProducts = productMargins.filter((p: { margin: number }) => p.margin >= 65);
         for (const hm of highMarginProducts) {
           const volumeRank = volumeRanked.findIndex(([name]) => name === hm.title);
-          const totalProducts = volumeRanked.length;
+          const totalRanked = volumeRanked.length;
           // Hidden gem if in bottom half by volume but high margin
-          if (volumeRank >= Math.floor(totalProducts / 2) && volumeRank >= 0) {
+          if (volumeRank >= Math.floor(totalRanked / 2) && volumeRank >= 0) {
             insights.push({
               type: "opportunity",
               label: "Hidden Gem",
               value: hm.title,
               detail: `${hm.margin.toFixed(0)}% margin but only #${volumeRank + 1} by volume — undermarketed`,
               sentiment: "info",
+              // Structured fields for OpportunityTile
+              productName: hm.title,
+              margin: Math.round(hm.margin),
+              volumeRank: volumeRank + 1,
+              totalProducts: totalRanked,
             });
             break; // only show top hidden gem
           }

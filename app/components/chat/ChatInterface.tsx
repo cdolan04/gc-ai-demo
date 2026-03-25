@@ -94,7 +94,7 @@ export function ChatInterface({
 
   const suggestedPrompts = [
     "Which products drive the most revenue?",
-    "Are there products I should push harder?",
+    "Compare my highest-margin product against my top seller",
     "Show me customer segments",
     "Show me low stock items",
   ];
