@@ -12,6 +12,7 @@ import { LiquidPreview } from "../generative-ui/LiquidPreview";
 import { DiscountCard } from "../generative-ui/DiscountCard";
 import { ProductUpdateConfirm } from "../generative-ui/ProductUpdateConfirm";
 import { ComparisonCard } from "../generative-ui/ComparisonCard";
+import { EmailCampaignCard } from "../generative-ui/EmailCampaignCard";
 import { UIErrorBoundary } from "../generative-ui/ErrorBoundary";
 
 interface MessageRendererProps {
@@ -228,6 +229,10 @@ function ToolResultRenderer({
       return <ProductUpdateConfirm data={result} />;
     case "compareProducts":
       return <ComparisonCard data={result} onAction={onSendPrompt} />;
+    case "createKlaviyoAudience":
+      return <EmailCampaignCard data={result} type="audience" />;
+    case "sendKlaviyoCampaign":
+      return <EmailCampaignCard data={result} type="campaign" />;
     default:
       return (
         <div
@@ -320,6 +325,10 @@ function getLoadingText(toolName: string): string {
       return "Preparing product update...";
     case "compareProducts":
       return "Comparing products...";
+    case "createKlaviyoAudience":
+      return "Building customer audience...";
+    case "sendKlaviyoCampaign":
+      return "Drafting email campaign...";
     default:
       return "Working...";
   }

@@ -598,6 +598,87 @@ export function createTools(admin: AdminClient) {
         };
       },
     }),
+    // --- Klaviyo Tools (preview-first) ---
+
+    createKlaviyoAudience: tool({
+      description:
+        "Create a targeted email audience in Klaviyo from a list of customer emails. " +
+        "The agent should FIRST use queryCustomers and/or queryOrders to identify the right customers, " +
+        "THEN call this tool with their emails and a description of the criteria. " +
+        "Returns a preview — the audience is NOT created until the user confirms. " +
+        "Use this before sendKlaviyoCampaign.",
+      inputSchema: zodSchema(
+        z.object({
+          audienceName: z.string().describe("Descriptive name for this audience (e.g., 'High-Value Repeat Buyers', 'Lapsed Customers 30d+')"),
+          description: z.string().describe("Human-readable explanation of how this audience was selected"),
+          customerEmails: z.array(z.string()).describe("Email addresses of customers to include"),
+        }),
+      ),
+      execute: async (input: {
+        audienceName: string;
+        description: string;
+        customerEmails: string[];
+      }) => {
+        return {
+          status: "preview",
+          type: "audience",
+          audienceName: input.audienceName,
+          description: input.description,
+          customerCount: input.customerEmails.length,
+          customerEmails: input.customerEmails,
+          message: "Here's the audience I'd create in Klaviyo. Confirm to proceed.",
+        };
+      },
+    }),
+
+    sendKlaviyoCampaign: tool({
+      description:
+        "Create and send an email campaign via Klaviyo to a previously created audience. " +
+        "Compose a professional email with subject line, preview text, and full HTML body. " +
+        "If a discount code or landing page was created earlier in the conversation, reference them in the email. " +
+        "Returns a preview — the campaign is NOT sent until the user confirms.",
+      inputSchema: zodSchema(
+        z.object({
+          campaignName: z.string().describe("Internal campaign name"),
+          audienceName: z.string().describe("Name of the audience to target (from createKlaviyoAudience)"),
+          customerEmails: z.array(z.string()).describe("Email addresses to target (same list from createKlaviyoAudience)"),
+          subject: z.string().describe("Email subject line — make it compelling and specific"),
+          previewText: z.string().describe("Preview text shown in inbox (1-2 sentences)"),
+          htmlBody: z.string().describe(
+            "Full HTML email body with inline styles. Max-width 600px, single column, mobile-friendly. " +
+            "Include product images, headlines, body copy, discount codes, CTA buttons. " +
+            "Use real product data from the conversation.",
+          ),
+          discountCode: z.string().optional().describe("Discount code to feature, if one was created earlier"),
+          landingPageUrl: z.string().optional().describe("Landing page URL to link to, if one was published earlier"),
+        }),
+      ),
+      execute: async (input: {
+        campaignName: string;
+        audienceName: string;
+        customerEmails: string[];
+        subject: string;
+        previewText: string;
+        htmlBody: string;
+        discountCode?: string;
+        landingPageUrl?: string;
+      }) => {
+        return {
+          status: "preview",
+          type: "campaign",
+          campaignName: input.campaignName,
+          audienceName: input.audienceName,
+          recipientCount: input.customerEmails.length,
+          subject: input.subject,
+          previewText: input.previewText,
+          htmlBody: input.htmlBody,
+          discountCode: input.discountCode || null,
+          landingPageUrl: input.landingPageUrl || null,
+          customerEmails: input.customerEmails,
+          message: "Here's the email campaign. Confirm to create it in Klaviyo.",
+        };
+      },
+    }),
   };
 }
 

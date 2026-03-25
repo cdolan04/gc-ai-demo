@@ -5,6 +5,13 @@ import {
   confirmCreateDiscount,
   confirmUpdateProduct,
 } from "../lib/ai/tools";
+import {
+  getOrCreateList,
+  getProfilesByEmails,
+  addProfilesToList,
+  createCampaign,
+  sendCampaign,
+} from "../lib/klaviyo/client";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -47,6 +54,59 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             descriptionHtml?: string;
           }),
         );
+
+      case "createKlaviyoAudience": {
+        if (!process.env.KLAVIYO_API_KEY) {
+          return Response.json({ success: false, error: "Klaviyo is not configured" }, { status: 500 });
+        }
+        const list = await getOrCreateList(params.audienceName);
+        const listId = list.id;
+        const profileMap = await getProfilesByEmails(params.customerEmails);
+        const profileIds = Object.values(profileMap).filter(Boolean) as string[];
+        if (profileIds.length > 0) {
+          await addProfilesToList(listId, profileIds);
+        }
+        return Response.json({
+          success: true,
+          listId,
+          audienceName: params.audienceName,
+          profilesAdded: profileIds.length,
+          profilesNotFound: params.customerEmails.length - profileIds.length,
+        });
+      }
+
+      case "sendKlaviyoCampaign": {
+        if (!process.env.KLAVIYO_API_KEY) {
+          return Response.json({ success: false, error: "Klaviyo is not configured" }, { status: 500 });
+        }
+        const campaignList = await getOrCreateList(params.audienceName || params.campaignName);
+        const campaignListId = campaignList.id;
+        const campaignProfileMap = await getProfilesByEmails(params.customerEmails);
+        const campaignProfileIds = Object.values(campaignProfileMap).filter(Boolean) as string[];
+        if (campaignProfileIds.length > 0) {
+          await addProfilesToList(campaignListId, campaignProfileIds);
+        }
+        const campaign = await createCampaign({
+          name: params.campaignName,
+          listId: campaignListId,
+          subject: params.subject,
+          previewText: params.previewText,
+          htmlBody: params.htmlBody,
+        });
+        let sent = false;
+        try {
+          await sendCampaign(campaign.id);
+          sent = true;
+        } catch (e) {
+          console.warn("Campaign send failed (may be free tier limitation):", e);
+        }
+        return Response.json({
+          success: true,
+          campaignId: campaign.id,
+          sent,
+          recipientCount: campaignProfileIds.length,
+        });
+      }
 
       default:
         return Response.json(
