@@ -36,8 +36,8 @@ export function ProductUpdateConfirm({ data }: { data: ProductUpdateData }) {
       } else {
         setError(result.errors?.[0]?.message || "Failed to update product");
       }
-    } catch (e: any) {
-      setError(e.message || "Failed to update product");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to update product");
     } finally {
       setConfirming(false);
     }

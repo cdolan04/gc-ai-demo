@@ -39,8 +39,8 @@ export function DiscountCard({ data }: { data: DiscountData }) {
       } else {
         setError(result.errors?.[0]?.message || "Failed to create discount");
       }
-    } catch (e: any) {
-      setError(e.message || "Failed to create discount");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to create discount");
     } finally {
       setConfirming(false);
     }

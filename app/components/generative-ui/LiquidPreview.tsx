@@ -39,8 +39,8 @@ export function LiquidPreview({ data }: { data: LiquidPreviewData }) {
       } else {
         setError(result.errors?.[0]?.message || "Failed to publish page");
       }
-    } catch (e: any) {
-      setError(e.message || "Failed to publish page");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to publish page");
     } finally {
       setPublishing(false);
     }

@@ -58,8 +58,8 @@ export function EmailCampaignCard({
       } else {
         setError(result.error || "Operation failed");
       }
-    } catch (e: any) {
-      setError(e.message || "Operation failed");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Operation failed");
     } finally {
       setConfirming(false);
     }

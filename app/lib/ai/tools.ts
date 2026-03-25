@@ -11,6 +11,18 @@ import {
   CREATE_DISCOUNT_CODE,
   UPDATE_PRODUCT,
 } from "./shopify-queries";
+import type {
+  ShopifyEdge,
+  OrderNode,
+  ProductNode,
+  CustomerNode,
+  VariantNode,
+  LineItemNode,
+  GraphQLError,
+  Insight,
+  LowStockItem,
+  ProductMargin,
+} from "./shopify-types";
 
 // Type for the Shopify admin GraphQL client
 type AdminClient = {
@@ -22,7 +34,7 @@ async function gql(admin: AdminClient, query: string, variables: Record<string, 
   const response = await admin.graphql(query, { variables });
   const json = await response.json();
   if (json.errors && json.errors.length > 0) {
-    const msg = json.errors.map((e: any) => e.message).join("; ");
+    const msg = json.errors.map((e: GraphQLError) => e.message).join("; ");
     throw new Error(`Shopify GraphQL error: ${msg}`);
   }
   if (!json.data) {
@@ -72,9 +84,9 @@ export function createTools(admin: AdminClient) {
           }),
         ]);
 
-        const orderEdges = orders.orders.edges;
+        const orderEdges: ShopifyEdge<OrderNode>[] = orders.orders.edges;
         const totalRevenue = orderEdges.reduce(
-          (sum: number, { node }: any) =>
+          (sum: number, { node }: ShopifyEdge<OrderNode>) =>
             sum + parseFloat(node.totalPriceSet.shopMoney.amount),
           0,
         );
@@ -82,9 +94,9 @@ export function createTools(admin: AdminClient) {
         const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
 
         // Prior period revenue
-        const priorOrderEdges = priorOrders.orders.edges;
+        const priorOrderEdges: ShopifyEdge<OrderNode>[] = priorOrders.orders.edges;
         const priorRevenue = priorOrderEdges.reduce(
-          (sum: number, { node }: any) =>
+          (sum: number, { node }: ShopifyEdge<OrderNode>) =>
             sum + parseFloat(node.totalPriceSet.shopMoney.amount),
           0,
         );
@@ -96,16 +108,16 @@ export function createTools(admin: AdminClient) {
             : 0;
 
         // Products analysis
-        const productEdges = products.products.edges;
-        const lowStock = productEdges
-          .filter(({ node }: any) => node.totalInventory < 10 && node.totalInventory >= 0)
-          .map(({ node }: any) => ({
+        const productEdges: ShopifyEdge<ProductNode>[] = products.products.edges;
+        const lowStock: LowStockItem[] = productEdges
+          .filter(({ node }: ShopifyEdge<ProductNode>) => node.totalInventory < 10 && node.totalInventory >= 0)
+          .map(({ node }: ShopifyEdge<ProductNode>) => ({
             title: node.title,
             inventory: node.totalInventory,
           }));
 
         // Compute product margins for hidden gem detection
-        const productMargins = productEdges.map(({ node }: any) => {
+        const productMargins: ProductMargin[] = productEdges.map(({ node }: ShopifyEdge<ProductNode>) => {
           const variant = node.variants?.edges?.[0]?.node;
           const price = variant ? parseFloat(variant.price) : 0;
           const cost = variant?.inventoryItem?.unitCost
@@ -117,14 +129,14 @@ export function createTools(admin: AdminClient) {
 
         // Count order volume per product from current period
         const productVolume: Record<string, number> = {};
-        for (const { node } of orderEdges) {
-          for (const { node: li } of (node.lineItems?.edges || [])) {
+        for (const { node } of orderEdges as ShopifyEdge<OrderNode>[]) {
+          for (const { node: li } of (node.lineItems?.edges || []) as ShopifyEdge<LineItemNode>[]) {
             productVolume[li.name] = (productVolume[li.name] || 0) + li.quantity;
           }
         }
 
         // Build insights (structured fields power rich tile visuals in KPIDashboard)
-        const insights: Array<Record<string, any>> = [];
+        const insights: Insight[] = [];
 
         // 1. Revenue trend
         if (priorRevenue > 0) {
@@ -146,7 +158,7 @@ export function createTools(admin: AdminClient) {
         if (lowStock.length > 0) {
           // Pick the most critical item (lowest stock) for the structured tile
           const criticalItem = lowStock.reduce(
-            (min: any, ls: any) => (ls.inventory < min.inventory ? ls : min),
+            (min: LowStockItem, ls: LowStockItem) => (ls.inventory < min.inventory ? ls : min),
             lowStock[0],
           );
           const critVol = productVolume[criticalItem.title] || 0;
@@ -236,7 +248,7 @@ export function createTools(admin: AdminClient) {
           first,
         });
 
-        return data.products.edges.map(({ node }: any) => ({
+        return data.products.edges.map(({ node }: ShopifyEdge<ProductNode>) => ({
           id: node.id,
           title: node.title,
           handle: node.handle,
@@ -251,7 +263,7 @@ export function createTools(admin: AdminClient) {
           },
           image: node.featuredMedia?.preview?.image?.url || null,
           imageAlt: node.featuredMedia?.preview?.image?.altText || null,
-          variants: node.variants.edges.map(({ node: v }: any) => ({
+          variants: node.variants.edges.map(({ node: v }: ShopifyEdge<ProductNode["variants"]["edges"][number]["node"]>) => ({
             id: v.id,
             title: v.title,
             sku: v.sku,
@@ -296,7 +308,7 @@ export function createTools(admin: AdminClient) {
           first: Math.min(first, 250),
         });
 
-        const orders = data.orders.edges.map(({ node }: any) => ({
+        const orders = data.orders.edges.map(({ node }: ShopifyEdge<OrderNode>) => ({
           id: node.id,
           name: node.name,
           createdAt: node.processedAt || node.createdAt,
@@ -312,7 +324,7 @@ export function createTools(admin: AdminClient) {
                 email: node.customer.email,
               }
             : null,
-          lineItems: node.lineItems.edges.map(({ node: li }: any) => ({
+          lineItems: node.lineItems.edges.map(({ node: li }: ShopifyEdge<LineItemNode>) => ({
             name: li.name,
             quantity: li.quantity,
             sku: li.sku,
@@ -395,7 +407,7 @@ export function createTools(admin: AdminClient) {
           first,
         });
 
-        return data.customers.edges.map(({ node }: any) => ({
+        return data.customers.edges.map(({ node }: ShopifyEdge<CustomerNode>) => ({
           id: node.id,
           name: node.displayName,
           email: node.email,
@@ -426,7 +438,7 @@ export function createTools(admin: AdminClient) {
       execute: async ({ first = 50 }: { first?: number }) => {
         const data = await gql(admin, GET_INVENTORY_ITEMS, { first });
 
-        return data.productVariants.edges.map(({ node }: any) => ({
+        return data.productVariants.edges.map(({ node }: ShopifyEdge<VariantNode>) => ({
           variantId: node.id,
           variantTitle: node.title,
           sku: node.sku,
@@ -435,7 +447,7 @@ export function createTools(admin: AdminClient) {
           productTitle: node.product.title,
           unitCost: node.inventoryItem?.unitCost?.amount || null,
           locations: node.inventoryItem.inventoryLevels.edges.map(
-            ({ node: level }: any) => ({
+            ({ node: level }: ShopifyEdge<{ location: { name: string }; quantities: Array<{ name: string; quantity: number }> }>) => ({
               locationName: level.location.name,
               quantities: level.quantities,
             }),

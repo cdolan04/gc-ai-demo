@@ -9,6 +9,7 @@ import {
   GET_PRODUCTS,
   GET_ORDERS,
 } from "../lib/ai/shopify-queries";
+import type { ShopifyEdge, OrderNode, ProductNode } from "../lib/ai/shopify-types";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -48,18 +49,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .then((r) => r.json()),
     ]);
 
-    const orderEdges = ordersRes.data?.orders?.edges || [];
+    const orderEdges: ShopifyEdge<OrderNode>[] = ordersRes.data?.orders?.edges || [];
     const totalRevenue = orderEdges.reduce(
-      (sum: number, { node }: any) =>
+      (sum: number, { node }: ShopifyEdge<OrderNode>) =>
         sum + parseFloat(node.totalPriceSet.shopMoney.amount),
       0,
     );
     const orderCount = orderEdges.length;
     const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
 
-    const priorEdges = priorOrdersRes.data?.orders?.edges || [];
+    const priorEdges: ShopifyEdge<OrderNode>[] = priorOrdersRes.data?.orders?.edges || [];
     const priorRevenue = priorEdges.reduce(
-      (sum: number, { node }: any) =>
+      (sum: number, { node }: ShopifyEdge<OrderNode>) =>
         sum + parseFloat(node.totalPriceSet.shopMoney.amount),
       0,
     );
@@ -68,11 +69,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? ((totalRevenue - priorRevenue) / priorRevenue) * 100
         : null;
 
-    const lowStock = (productsRes.data?.products?.edges || [])
+    const lowStock = (productsRes.data?.products?.edges as ShopifyEdge<ProductNode>[] || [])
       .filter(
-        ({ node }: any) => node.totalInventory < 10 && node.totalInventory >= 0,
+        ({ node }: ShopifyEdge<ProductNode>) => node.totalInventory < 10 && node.totalInventory >= 0,
       )
-      .map(({ node }: any) => node.title);
+      .map(({ node }: ShopifyEdge<ProductNode>) => node.title);
 
     // Build a compact context string for the AI system prompt
     const welcomeContext = [

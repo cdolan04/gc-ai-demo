@@ -15,6 +15,14 @@ import { ComparisonCard } from "../generative-ui/ComparisonCard";
 import { EmailCampaignCard } from "../generative-ui/EmailCampaignCard";
 import { UIErrorBoundary } from "../generative-ui/ErrorBoundary";
 
+interface ToolPart {
+  type: string;
+  toolName?: string;
+  output?: unknown;
+  state?: string;
+  input?: Record<string, unknown>;
+}
+
 interface MessageRendererProps {
   message: UIMessage;
   onSendPrompt?: (text: string) => void;
@@ -36,10 +44,10 @@ export function MessageRenderer({ message, onSendPrompt }: MessageRendererProps)
 
         // Tool parts have type "tool-${toolName}" pattern
         if (part.type.startsWith("tool-") || part.type === "dynamic-tool") {
-          const toolPart = part as any;
+          const toolPart = part as ToolPart;
           const toolName =
             part.type === "dynamic-tool"
-              ? toolPart.toolName
+              ? (toolPart.toolName || "unknown")
               : part.type.replace("tool-", "");
 
           // AI SDK v6: output is present when the tool has completed,
@@ -170,8 +178,8 @@ function ToolResultRenderer({
 }: {
   toolName: string;
   state: string;
-  result: any;
-  args: any;
+  result: unknown;
+  args: Record<string, unknown> | undefined;
   onSendPrompt?: (text: string) => void;
 }) {
   if (state !== "result") {
@@ -204,35 +212,38 @@ function ToolResultRenderer({
     );
   }
 
+  // Tool outputs are untyped JSON from the AI SDK — assert at the component boundary
   switch (toolName) {
     case "getStoreSummary":
-      return <KPIDashboard data={result} onAction={onSendPrompt} />;
+      return <KPIDashboard data={result as React.ComponentProps<typeof KPIDashboard>["data"]} onAction={onSendPrompt} />;
     case "queryProducts":
-      return <ProductGrid products={result} />;
-    case "queryOrders":
-      if (result.aggregation === "day") {
-        return <SalesChart data={result.data} />;
+      return <ProductGrid products={result as React.ComponentProps<typeof ProductGrid>["products"]} />;
+    case "queryOrders": {
+      const orderResult = result as { aggregation?: string; data?: unknown[] };
+      if (orderResult.aggregation === "day") {
+        return <SalesChart data={orderResult.data as React.ComponentProps<typeof SalesChart>["data"]} />;
       }
-      if (result.aggregation === "product") {
-        return <ProductGrid products={result.data} isAggregated />;
+      if (orderResult.aggregation === "product") {
+        return <ProductGrid products={orderResult.data as React.ComponentProps<typeof ProductGrid>["products"]} isAggregated />;
       }
-      return <CollapsedOrders orders={result.data || result} />;
+      return <CollapsedOrders orders={(orderResult.data || orderResult) as React.ComponentProps<typeof OrdersTable>["orders"]} />;
+    }
     case "queryCustomers":
-      return <CustomerCard customers={result} />;
+      return <CustomerCard customers={result as React.ComponentProps<typeof CustomerCard>["customers"]} />;
     case "queryInventory":
-      return <InventoryStatus items={result} />;
+      return <InventoryStatus items={result as React.ComponentProps<typeof InventoryStatus>["items"]} />;
     case "generateLiquidPage":
-      return <LiquidPreview data={result} />;
+      return <LiquidPreview data={result as React.ComponentProps<typeof LiquidPreview>["data"]} />;
     case "createDiscountCode":
-      return <DiscountCard data={result} />;
+      return <DiscountCard data={result as React.ComponentProps<typeof DiscountCard>["data"]} />;
     case "updateProductCopy":
-      return <ProductUpdateConfirm data={result} />;
+      return <ProductUpdateConfirm data={result as React.ComponentProps<typeof ProductUpdateConfirm>["data"]} />;
     case "compareProducts":
-      return <ComparisonCard data={result} onAction={onSendPrompt} />;
+      return <ComparisonCard data={result as React.ComponentProps<typeof ComparisonCard>["data"]} onAction={onSendPrompt} />;
     case "createKlaviyoAudience":
-      return <EmailCampaignCard data={result} type="audience" />;
+      return <EmailCampaignCard data={result as React.ComponentProps<typeof EmailCampaignCard>["data"]} type="audience" />;
     case "sendKlaviyoCampaign":
-      return <EmailCampaignCard data={result} type="campaign" />;
+      return <EmailCampaignCard data={result as React.ComponentProps<typeof EmailCampaignCard>["data"]} type="campaign" />;
     default:
       return (
         <div
@@ -255,7 +266,7 @@ function ToolResultRenderer({
  * For non-aggregated order queries, show a compact summary instead of a big table.
  * The AI's text response already contains the analysis — the raw table adds no value.
  */
-function CollapsedOrders({ orders }: { orders: any[] }) {
+function CollapsedOrders({ orders }: { orders: React.ComponentProps<typeof OrdersTable>["orders"] }) {
   const [showTable, setShowTable] = useState(false);
 
   if (!orders || orders.length === 0) {

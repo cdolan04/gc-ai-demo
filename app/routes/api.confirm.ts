@@ -16,7 +16,7 @@ import {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
-  let body: Record<string, any>;
+  let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
@@ -59,9 +59,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!process.env.KLAVIYO_API_KEY) {
           return Response.json({ success: false, error: "Klaviyo is not configured" }, { status: 500 });
         }
-        const list = await getOrCreateList(params.audienceName);
+        const audienceParams = params as { audienceName: string; customerEmails: string[] };
+        const list = await getOrCreateList(audienceParams.audienceName);
         const listId = list.id;
-        const profileMap = await getProfilesByEmails(params.customerEmails);
+        const profileMap = await getProfilesByEmails(audienceParams.customerEmails);
         const profileIds = Object.values(profileMap).filter(Boolean) as string[];
         if (profileIds.length > 0) {
           await addProfilesToList(listId, profileIds);
@@ -69,9 +70,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return Response.json({
           success: true,
           listId,
-          audienceName: params.audienceName,
+          audienceName: audienceParams.audienceName,
           profilesAdded: profileIds.length,
-          profilesNotFound: params.customerEmails.length - profileIds.length,
+          profilesNotFound: audienceParams.customerEmails.length - profileIds.length,
         });
       }
 
@@ -79,19 +80,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!process.env.KLAVIYO_API_KEY) {
           return Response.json({ success: false, error: "Klaviyo is not configured" }, { status: 500 });
         }
-        const campaignList = await getOrCreateList(params.audienceName || params.campaignName);
+        const campaignParams = params as {
+          audienceName?: string; campaignName: string; customerEmails: string[];
+          subject: string; previewText: string; htmlBody: string;
+        };
+        const campaignList = await getOrCreateList(campaignParams.audienceName || campaignParams.campaignName);
         const campaignListId = campaignList.id;
-        const campaignProfileMap = await getProfilesByEmails(params.customerEmails);
+        const campaignProfileMap = await getProfilesByEmails(campaignParams.customerEmails);
         const campaignProfileIds = Object.values(campaignProfileMap).filter(Boolean) as string[];
         if (campaignProfileIds.length > 0) {
           await addProfilesToList(campaignListId, campaignProfileIds);
         }
         const campaign = await createCampaign({
-          name: params.campaignName,
+          name: campaignParams.campaignName,
           listId: campaignListId,
-          subject: params.subject,
-          previewText: params.previewText,
-          htmlBody: params.htmlBody,
+          subject: campaignParams.subject,
+          previewText: campaignParams.previewText,
+          htmlBody: campaignParams.htmlBody,
         });
         let sent = false;
         try {
@@ -114,10 +119,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           { status: 400 },
         );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Confirm action "${confirmAction}" failed:`, error);
     return Response.json(
-      { success: false, error: error.message || "Mutation failed" },
+      { success: false, error: error instanceof Error ? error.message : "Mutation failed" },
       { status: 500 },
     );
   }

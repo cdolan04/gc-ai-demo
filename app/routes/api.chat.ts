@@ -24,7 +24,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(
       { error: "ANTHROPIC_API_KEY is not configured" },
-      { status: 500 },
+      { status: 503 },
     );
   }
 
@@ -48,7 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     stopWhen: stepCountIs(10),
     onStepFinish: ({ toolCalls }) => {
       if (toolCalls?.length) {
-        console.log(`[AI] Tools called:`, toolCalls.map((t: any) => t.toolName).join(", "));
+        console.log(`[AI] Tools called:`, toolCalls.map((t: { toolName: string }) => t.toolName).join(", "));
       }
     },
     onError: ({ error }) => {
