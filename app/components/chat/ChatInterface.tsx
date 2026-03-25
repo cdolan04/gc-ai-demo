@@ -5,12 +5,18 @@ import { MessageRenderer } from "./MessageRenderer";
 
 export function ChatInterface({
   welcomeContext,
+  onReady,
 }: {
   welcomeContext?: string;
+  onReady?: (sendPrompt: (text: string) => void) => void;
 }) {
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/chat" }),
-    [],
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        body: welcomeContext ? { welcomeContext } : undefined,
+      }),
+    [welcomeContext],
   );
 
   const { messages, status, sendMessage, error } = useChat({
@@ -18,8 +24,6 @@ export function ChatInterface({
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const hasFired = useRef(false);
-  const retryCount = useRef(0);
   const [inputValue, setInputValue] = useState("");
 
   const scrollToBottom = useCallback(() => {
@@ -31,35 +35,6 @@ export function ChatInterface({
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
-
-  // Auto-fire briefing on first mount
-  useEffect(() => {
-    if (!hasFired.current) {
-      hasFired.current = true;
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: "Give me this week's briefing" }],
-      });
-    }
-  }, [sendMessage]);
-
-  // Auto-retry once if the initial briefing fails (e.g. API overloaded)
-  useEffect(() => {
-    if (
-      error &&
-      retryCount.current < 1 &&
-      messages.filter((m) => m.role === "user").length <= 1
-    ) {
-      retryCount.current += 1;
-      const timer = setTimeout(() => {
-        sendMessage({
-          role: "user",
-          parts: [{ type: "text", text: "Give me this week's briefing" }],
-        });
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [error, messages, sendMessage]);
 
   const isLoading = status === "streaming" || status === "submitted";
 
@@ -92,6 +67,11 @@ export function ChatInterface({
     [sendMessage],
   );
 
+  // Expose sendPrompt to parent via onReady
+  useEffect(() => {
+    onReady?.(sendPrompt);
+  }, [onReady, sendPrompt]);
+
   const suggestedPrompts = [
     "Which products drive the most revenue?",
     "Compare my highest-margin product against my top seller",
@@ -99,10 +79,11 @@ export function ChatInterface({
     "Show me low stock items",
   ];
 
-  // Show suggested prompts after the first assistant response, before user sends a second message
+  // Show suggested prompts when chat is empty or after first AI response
   const showSuggestions =
-    messages.length >= 2 &&
-    messages.filter((m) => m.role === "user").length <= 1 &&
+    (messages.length === 0 ||
+      (messages.length >= 2 &&
+        messages.filter((m) => m.role === "user").length <= 1)) &&
     !isLoading;
 
   // Helper to extract text content from a UIMessage
@@ -158,9 +139,19 @@ export function ChatInterface({
           </div>
         ))}
 
-        {/* Suggested prompts after first AI response */}
+        {/* Welcome message + suggested prompts */}
+        {messages.length === 0 && (
+          <div style={{ textAlign: "center", padding: "32px 16px 8px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 600, color: "var(--p-color-text, #202223)" }}>
+              How can I help with your store today?
+            </div>
+            <div style={{ fontSize: "13px", color: "var(--p-color-text-secondary, #616161)", marginTop: "4px" }}>
+              Ask me anything about your products, orders, or customers.
+            </div>
+          </div>
+        )}
         {showSuggestions && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", padding: "4px 0" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", padding: "4px 0", justifyContent: messages.length === 0 ? "center" : undefined }}>
             {suggestedPrompts.map((prompt) => (
               <button
                 key={prompt}
@@ -225,7 +216,11 @@ export function ChatInterface({
                 : `Error: ${error.message}`}
             </span>
             <button
-              onClick={() => sendPrompt("Give me this week's briefing")}
+              onClick={() => {
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+                const text = lastUserMsg ? getMessageText(lastUserMsg) : "Give me a store overview";
+                sendPrompt(text);
+              }}
               style={{
                 padding: "6px 12px",
                 borderRadius: "6px",

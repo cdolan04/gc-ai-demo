@@ -14,7 +14,7 @@ const MAX_UI_MESSAGES = 20;
 
 function trimMessages(messages: UIMessage[]): UIMessage[] {
   if (messages.length <= MAX_UI_MESSAGES) return messages;
-  // Keep first message (has welcome context) + last (MAX-1) messages
+  // Keep first message + last (MAX-1) messages
   return [messages[0], ...messages.slice(-(MAX_UI_MESSAGES - 1))];
 }
 
@@ -28,7 +28,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  const { messages } = (await request.json()) as { messages: UIMessage[] };
+  const { messages, welcomeContext } = (await request.json()) as {
+    messages: UIMessage[];
+    welcomeContext?: string;
+  };
 
   const anthropic = createAnthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -38,7 +41,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-20250514"),
-    system: buildSystemPrompt(),
+    system: buildSystemPrompt(welcomeContext),
     messages: await convertToModelMessages(trimMessages(messages)),
     tools,
     maxRetries: 3,

@@ -1,8 +1,10 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
+import { useRef, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { ChatInterface } from "../components/chat/ChatInterface";
+import { KPIStrip } from "../components/chat/KPIStrip";
 import {
   GET_PRODUCTS,
   GET_ORDERS,
@@ -11,16 +13,30 @@ import {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
-  const since = new Date();
+  const now = new Date();
+  const since = new Date(now);
   since.setDate(since.getDate() - 7);
   const sinceStr = since.toISOString();
 
+  // Prior 7-day window for WoW comparison
+  const priorSince = new Date(now);
+  priorSince.setDate(priorSince.getDate() - 14);
+  const priorSinceStr = priorSince.toISOString();
+
   try {
-    const [ordersRes, productsRes] = await Promise.all([
+    const [ordersRes, priorOrdersRes, productsRes] = await Promise.all([
       admin
         .graphql(GET_ORDERS, {
           variables: {
             query: `processed_at:>='${sinceStr}'`,
+            first: 250,
+          },
+        })
+        .then((r) => r.json()),
+      admin
+        .graphql(GET_ORDERS, {
+          variables: {
+            query: `processed_at:>='${priorSinceStr}' AND processed_at:<'${sinceStr}'`,
             first: 250,
           },
         })
@@ -41,31 +57,70 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const orderCount = orderEdges.length;
     const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
 
+    const priorEdges = priorOrdersRes.data?.orders?.edges || [];
+    const priorRevenue = priorEdges.reduce(
+      (sum: number, { node }: any) =>
+        sum + parseFloat(node.totalPriceSet.shopMoney.amount),
+      0,
+    );
+    const revenueDelta =
+      priorRevenue > 0
+        ? ((totalRevenue - priorRevenue) / priorRevenue) * 100
+        : null;
+
     const lowStock = (productsRes.data?.products?.edges || [])
       .filter(
         ({ node }: any) => node.totalInventory < 10 && node.totalInventory >= 0,
       )
       .map(({ node }: any) => node.title);
 
-    // Build a compact context string for the AI's first briefing
+    // Build a compact context string for the AI system prompt
     const welcomeContext = [
       `Revenue (7d): $${Math.round(totalRevenue).toLocaleString()}`,
+      revenueDelta !== null ? `Revenue WoW: ${revenueDelta > 0 ? "+" : ""}${revenueDelta.toFixed(1)}%` : "",
       `Orders (7d): ${orderCount}`,
       `AOV: $${aov.toFixed(2)}`,
       lowStock.length > 0
         ? `Low stock alerts: ${lowStock.join(", ")}`
         : "No low stock alerts",
-    ].join(" | ");
+    ].filter(Boolean).join(" | ");
 
-    return { welcomeContext };
+    return {
+      kpis: {
+        totalRevenue,
+        orderCount,
+        aov,
+        revenueDelta,
+        lowStockCount: lowStock.length,
+      },
+      welcomeContext,
+    };
   } catch (error) {
     console.error("Dashboard loader error:", error);
-    return { welcomeContext: "" };
+    return {
+      kpis: {
+        totalRevenue: 0,
+        orderCount: 0,
+        aov: 0,
+        revenueDelta: null,
+        lowStockCount: 0,
+      },
+      welcomeContext: "",
+    };
   }
 };
 
 export default function Index() {
-  const { welcomeContext } = useLoaderData<typeof loader>();
+  const { kpis, welcomeContext } = useLoaderData<typeof loader>();
+  const sendPromptRef = useRef<((text: string) => void) | null>(null);
+
+  const handleReady = useCallback((sendPrompt: (text: string) => void) => {
+    sendPromptRef.current = sendPrompt;
+  }, []);
+
+  const handleDigDeeper = useCallback((prompt: string) => {
+    sendPromptRef.current?.(prompt);
+  }, []);
 
   return (
     <s-page heading="Store AI">
@@ -80,7 +135,8 @@ export default function Index() {
           background: "var(--p-color-bg-surface, #fff)",
         }}
       >
-        <ChatInterface welcomeContext={welcomeContext} />
+        <KPIStrip kpis={kpis} onDigDeeper={handleDigDeeper} />
+        <ChatInterface welcomeContext={welcomeContext} onReady={handleReady} />
       </div>
     </s-page>
   );
