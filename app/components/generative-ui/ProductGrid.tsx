@@ -134,10 +134,10 @@ export function ProductGrid({
               background: "var(--p-color-bg-surface, #fff)",
             }}
           >
-            {product.image && (
+            {product.image ? (
               <div
                 style={{
-                  height: "120px",
+                  height: "160px",
                   background: "#f6f6f7",
                   display: "flex",
                   alignItems: "center",
@@ -154,6 +154,21 @@ export function ProductGrid({
                     objectFit: "contain",
                   }}
                 />
+              </div>
+            ) : (
+              <div
+                style={{
+                  height: "160px",
+                  background: "linear-gradient(135deg, #f0f0f0, #e8e8e8)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "36px",
+                  fontWeight: 700,
+                  color: "#ccc",
+                }}
+              >
+                {(product.title || "?")[0]}
               </div>
             )}
             <div style={{ padding: "12px" }}>

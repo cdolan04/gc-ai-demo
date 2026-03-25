@@ -98,10 +98,10 @@ export function ComparisonCard({
                 </div>
               )}
 
-              {product.image && (
+              {product.image ? (
                 <div
                   style={{
-                    height: "80px",
+                    height: "120px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -116,6 +116,23 @@ export function ComparisonCard({
                     alt={product.title}
                     style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
                   />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    height: "120px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "10px",
+                    background: "linear-gradient(135deg, #f0f0f0, #e8e8e8)",
+                    borderRadius: "6px",
+                    fontSize: "28px",
+                    fontWeight: 700,
+                    color: "#ccc",
+                  }}
+                >
+                  {product.title[0]}
                 </div>
               )}
               <div

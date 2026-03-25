@@ -469,7 +469,7 @@ export function createTools(admin: AdminClient) {
 
     generateLiquidPage: tool({
       description:
-        "Generate an HTML landing page for a product. Returns a preview — the page is NOT published until the user confirms. Use real product data (title, price, description, image URLs) from prior tool calls.",
+        "Generate a professional DTC-quality HTML landing page for a product. The page should look like a real marketing landing page with hero section, social proof, benefits grid, and CTA. Returns a preview — the page is NOT published until the user confirms. ALWAYS use real product data (title, price, description, image URLs) from prior queryProducts tool calls.",
       inputSchema: zodSchema(
         z.object({
           title: z.string().describe("Page title"),
@@ -514,7 +514,7 @@ export function createTools(admin: AdminClient) {
           value: z.number().describe("Discount value — percentage (e.g., 15 for 15%) or fixed amount in dollars"),
           title: z.string().describe("Internal title for the discount"),
           appliesTo: z.string().optional().describe("Product or collection this applies to (description for display)"),
-          expiresAt: z.string().optional().describe("Expiration date in ISO format"),
+          expiresAt: z.string().optional().describe("Expiration date in ISO format. Must be in the future. Use 30 days from now if unsure."),
         }),
       ),
       execute: async (input: {
@@ -625,12 +625,22 @@ export async function confirmCreateDiscount(
           items: { all: true },
         };
 
+  const now = new Date();
+  // Ensure endsAt is in the future; discard past dates to avoid Shopify validation error
+  let validEndsAt: string | null = null;
+  if (expiresAt) {
+    const endsDate = new Date(expiresAt);
+    if (endsDate > now) {
+      validEndsAt = endsDate.toISOString();
+    }
+  }
+
   const data = await gql(admin, CREATE_DISCOUNT_CODE, {
     basicCodeDiscount: {
       title,
       code,
-      startsAt: new Date().toISOString(),
-      endsAt: expiresAt || null,
+      startsAt: now.toISOString(),
+      endsAt: validEndsAt,
       customerSelection: { all: true },
       customerGets,
     },

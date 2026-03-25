@@ -5,6 +5,19 @@ import { authenticate } from "../shopify.server";
 import { createTools } from "../lib/ai/tools";
 import { buildSystemPrompt } from "../lib/ai/system-prompt";
 
+/**
+ * Trim conversation history to keep input tokens under the rate limit.
+ * Keeps the first message (initial briefing context) and the most recent messages.
+ * This prevents large accumulated tool results from blowing past the 30k/min limit.
+ */
+const MAX_UI_MESSAGES = 20;
+
+function trimMessages(messages: UIMessage[]): UIMessage[] {
+  if (messages.length <= MAX_UI_MESSAGES) return messages;
+  // Keep first message (has welcome context) + last (MAX-1) messages
+  return [messages[0], ...messages.slice(-(MAX_UI_MESSAGES - 1))];
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
@@ -26,13 +39,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const result = streamText({
     model: anthropic("claude-sonnet-4-20250514"),
     system: buildSystemPrompt(),
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(trimMessages(messages)),
     tools,
-    maxRetries: 5,
+    maxRetries: 3,
     stopWhen: stepCountIs(10),
-    onStepFinish: ({ stepType, toolCalls }) => {
+    onStepFinish: ({ toolCalls }) => {
       if (toolCalls?.length) {
-        console.log(`[AI] Step: ${stepType}, tools called:`, toolCalls.map((t: any) => t.toolName).join(", "));
+        console.log(`[AI] Tools called:`, toolCalls.map((t: any) => t.toolName).join(", "));
       }
     },
     onError: ({ error }) => {
