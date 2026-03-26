@@ -176,11 +176,11 @@ This is a take home demo. Here's what the production version requires:
 - **Caching layer**: Redis for frequently-queried data (product catalog, recent orders). Shopify's GraphQL rate limits (1000-point bucket) become real constraints at scale.
 - **Multi-tenant**: Session-scoped admin clients per store. The current architecture already does this via Shopify's auth middleware — it just needs a real database backing it.
 - **Observability**: Structured logging (Pino/Winston), error tracking (Sentry), usage analytics, and token cost monitoring per conversation. The current `console.log` instrumentation becomes structured telemetry.
-- **Additional channels**: The tool pattern extends naturally. Meta Ads audience sync, Google Ads campaign creation, SMS via Klaviyo - each is a new tool with the same unerlying AI to Action pattern.
+- **Additional channels**: The tool pattern extends naturally. Meta Ads audience sync, Google Ads campaign creation, SMS via Klaviyo - each is a new tool with the same underlying AI to Action pattern.
 - **Conversation persistence**: Store chat history so the CEO can pick up where they left off. Currently conversations reset on page reload.
 - **Plugin architecture**: New data sources and action tools as installable plugins, so the platform extends without touching core code.
 - **Theme-integrated pages**: Current landing pages are standalone HTML. Production would generate Shopify theme sections for full design system integration.
-- **Theme-integrated pages**: Expansion beyond Shopify native architecture. This can easily be expanded to sit on top of a company Data Warehouse, or ETL to Data Warehouse could be incorporated in the software and/or agency relationship.
+- **Data warehouse integration**: Expansion beyond Shopify native architecture. This can easily be expanded to sit on top of a company Data Warehouse, or ETL to Data Warehouse could be incorporated in the software and/or agency relationship.
 
 ---
 

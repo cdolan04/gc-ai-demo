@@ -74,11 +74,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     tools,
     maxRetries: 0,
     stopWhen: stepCountIs(6),
-    onStepFinish: ({ toolCalls }) => {
-      if (toolCalls?.length) {
-        console.log(`[AI] Tools called:`, toolCalls.map((t: { toolName: string }) => t.toolName).join(", "));
-      }
-    },
     onError: ({ error }) => {
       console.error("streamText error:", error);
     },
