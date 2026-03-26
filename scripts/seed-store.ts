@@ -315,8 +315,8 @@ async function seedCustomers() {
   console.log("\n=== Seeding Customers ===\n");
 
   const check = await gql(`query { customers(first: 5, query: "email:*@example.com") { edges { node { id } } } }`);
-  if (check.customers.edges.length > 100) {
-    console.log("Customers already seeded.\n");
+  if (check.customers.edges.length > 0) {
+    console.log("Customers already seeded. Loading existing...\n");
     const all = await gql(`query { customers(first: 250) { edges { node { id displayName email tags } } } }`);
     return all.customers.edges.map((e: any) => ({
       id: e.node.id, name: e.node.displayName, email: e.node.email, segment: e.node.tags?.[0] || "one-time",
@@ -366,13 +366,7 @@ async function seedCustomers() {
 async function seedOrders(products: any[], customers: any[]) {
   console.log("\n=== Seeding Orders ===\n");
 
-  const countData = await gql(`query { ordersCount { count } }`);
-  const existing = countData.ordersCount.count;
-  if (existing > 150) {
-    console.log(`Already ${existing} orders. Skipping.\n`);
-    return;
-  }
-  console.log(`  Existing: ${existing}. Target: 200.\n`);
+  console.log(`  Creating 200 orders with fresh dates...\n`);
 
   const TARGET = 200;
   const productMap = new Map(products.map((p: any) => [p.title, p]));
@@ -498,6 +492,77 @@ async function seedOrders(products: any[], customers: any[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Cleanup: Delete old seed orders
+// ---------------------------------------------------------------------------
+async function cleanupSeedOrders() {
+  console.log("\n=== Cleaning Up Old Seed Orders ===\n");
+
+  const token = await getToken();
+  const restBase = `https://${STORE}/admin/api/2025-10`;
+
+  // Helper for REST calls
+  async function rest(method: string, path: string): Promise<{ status: number; data: unknown }> {
+    const res = await fetch(`${restBase}${path}`, {
+      method,
+      headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json" },
+    });
+    if (res.status === 429) {
+      console.log("  Rate limited, waiting 3s...");
+      await sleep(3000);
+      return rest(method, path);
+    }
+    const data = res.headers.get("content-type")?.includes("json") ? await res.json() : null;
+    return { status: res.status, data };
+  }
+
+  // Query all seed-tagged orders via GraphQL (paginated)
+  let cursor: string | null = null;
+  let deleted = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const afterClause = cursor ? `, after: "${cursor}"` : "";
+    const result = await gql(`
+      query {
+        orders(first: 250, query: "tag:seed"${afterClause}) {
+          edges {
+            node { id }
+            cursor
+          }
+          pageInfo { hasNextPage }
+        }
+      }
+    `);
+
+    const edges = result?.orders?.edges || [];
+    hasMore = result?.orders?.pageInfo?.hasNextPage || false;
+    if (edges.length > 0) cursor = edges[edges.length - 1].cursor;
+
+    for (const { node } of edges) {
+      // Extract numeric ID from GID (gid://shopify/Order/12345 → 12345)
+      const numericId = node.id.split("/").pop();
+
+      // Cancel first (required before delete), ignore errors if already cancelled
+      await rest("POST", `/orders/${numericId}/cancel.json`);
+      // Delete
+      const { status } = await rest("DELETE", `/orders/${numericId}.json`);
+      if (status === 200 || status === 204) {
+        deleted++;
+      }
+
+      if (deleted % 25 === 0 && deleted > 0) {
+        console.log(`  Deleted ${deleted} orders...`);
+      }
+      await sleep(250); // gentle rate limiting
+    }
+
+    if (edges.length === 0) break;
+  }
+
+  console.log(`  Done: deleted ${deleted} seed orders\n`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -519,6 +584,7 @@ async function main() {
 
   const products = await seedProducts(locationId);
   const customers = await seedCustomers();
+  await cleanupSeedOrders();
   await seedOrders(products, customers);
 
   console.log("=== Seeding Complete ===\n");
