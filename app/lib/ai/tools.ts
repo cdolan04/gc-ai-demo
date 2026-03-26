@@ -47,13 +47,13 @@ export function createTools(admin: AdminClient) {
   return {
     getStoreSummary: tool({
       description:
-        "Get a high-level store summary: total products, recent order count, revenue, AOV, and low-stock alerts. Use this when the user asks about overall store performance or as a starting point.",
+        "Store KPIs: revenue, orders, AOV, low-stock alerts, trends, and insights. Default starting point.",
       inputSchema: zodSchema(
         z.object({
           daysBack: z
             .number()
             .optional()
-            .describe("Number of days to look back for orders. Defaults to 7."),
+            .describe("Days to look back. Defaults to 7."),
         }),
       ),
       execute: async ({ daysBack = 7 }: { daysBack?: number }) => {
@@ -229,17 +229,17 @@ export function createTools(admin: AdminClient) {
 
     queryProducts: tool({
       description:
-        "Search and retrieve products with pricing, inventory, margin (from unitCost), and images. Use for product analysis, margin comparisons, and getting real product data before generating pages.",
+        "Search products with pricing, inventory, margin, and images. Use before generating landing pages.",
       inputSchema: zodSchema(
         z.object({
           searchQuery: z
             .string()
             .optional()
-            .describe("Shopify search query (e.g., 'title:collagen', 'status:active'). Leave empty to get all products."),
+            .describe("Shopify search query. Empty = all products."),
           first: z
             .number()
             .optional()
-            .describe("Number of products to return. Defaults to 25."),
+            .describe("Count to return. Defaults to 25."),
         }),
       ),
       execute: async ({ searchQuery = "", first = 25 }: { searchQuery?: string; first?: number }) => {
@@ -285,27 +285,23 @@ export function createTools(admin: AdminClient) {
 
     queryOrders: tool({
       description:
-        "Query orders with server-side aggregation. ALWAYS use aggregateBy ('day', 'product', or 'customer') for analytics — this renders charts and ranked tables. Only omit aggregateBy when the user explicitly asks to see individual orders, as it renders a large table.",
+        "Query orders with aggregation. Use aggregateBy for analytics (day=chart, product=ranked table, customer=top spenders). Omit only for raw order lists.",
       inputSchema: zodSchema(
         z.object({
           searchQuery: z
             .string()
             .optional()
-            .describe("Shopify order search query (e.g., 'processed_at:>=2024-01-01', 'financial_status:paid'). IMPORTANT: Use 'processed_at' (not 'created_at') for date filtering."),
-          first: z
-            .number()
-            .optional()
-            .describe("Number of orders to return. Defaults to 50, max 250."),
+            .describe("Order search query. Use processed_at for dates."),
           aggregateBy: z
             .enum(["none", "day", "product", "customer"])
             .optional()
-            .describe("How to aggregate results. 'day' groups revenue by date, 'product' by line item, 'customer' by customer. Defaults to 'none' for raw orders."),
+            .describe("Aggregation mode. Defaults to none."),
         }),
       ),
-      execute: async ({ searchQuery = "", first = 50, aggregateBy = "none" }: { searchQuery?: string; first?: number; aggregateBy?: string }) => {
+      execute: async ({ searchQuery = "", aggregateBy = "none" }: { searchQuery?: string; aggregateBy?: string }) => {
         const data = await gql(admin, GET_ORDERS, {
           query: searchQuery,
-          first: Math.min(first, 250),
+          first: 250,
         });
 
         const orders = data.orders.edges.map(({ node }: ShopifyEdge<OrderNode>) => ({
@@ -388,17 +384,17 @@ export function createTools(admin: AdminClient) {
 
     queryCustomers: tool({
       description:
-        "Search customers by name, email, tags, or spending. Returns order count, lifetime spend, and address. Use for customer segmentation and identifying high-value customers.",
+        "Search customers with order count, lifetime spend, and address. Use for segmentation.",
       inputSchema: zodSchema(
         z.object({
           searchQuery: z
             .string()
             .optional()
-            .describe("Shopify customer search query (e.g., 'orders_count:>3', 'tag:vip')."),
+            .describe("Customer search query."),
           first: z
             .number()
             .optional()
-            .describe("Number of customers to return. Defaults to 25."),
+            .describe("Count. Defaults to 25."),
         }),
       ),
       execute: async ({ searchQuery = "", first = 25 }: { searchQuery?: string; first?: number }) => {
@@ -411,14 +407,9 @@ export function createTools(admin: AdminClient) {
           id: node.id,
           name: node.displayName,
           email: node.email,
-          phone: node.phone,
           orderCount: parseInt(node.numberOfOrders, 10),
           totalSpent: parseFloat(node.amountSpent.amount),
-          currency: node.amountSpent.currencyCode,
-          createdAt: node.createdAt,
           city: node.defaultAddress?.city || null,
-          province: node.defaultAddress?.provinceCode || null,
-          country: node.defaultAddress?.country || null,
           tags: node.tags,
         }));
       },
@@ -426,13 +417,13 @@ export function createTools(admin: AdminClient) {
 
     queryInventory: tool({
       description:
-        "Get detailed inventory levels across locations, including available, incoming, and committed quantities. Use for stock analysis and low-stock alerts.",
+        "Inventory levels by variant and location with available/committed quantities.",
       inputSchema: zodSchema(
         z.object({
           first: z
             .number()
             .optional()
-            .describe("Number of variants to check. Defaults to 50."),
+            .describe("Variants to check. Defaults to 50."),
         }),
       ),
       execute: async ({ first = 50 }: { first?: number }) => {
@@ -458,27 +449,24 @@ export function createTools(admin: AdminClient) {
 
     compareProducts: tool({
       description:
-        "Compare two or more products side-by-side on margin, revenue, units sold, and reorder rate. Use this when the user asks which products to push harder, or when you want to highlight an undermarketed product. Provide the comparison data you've already gathered from queryProducts and queryOrders.",
+        "Side-by-side product comparison on margin, revenue, and volume. Use to highlight undermarketed products. Provide data from prior queries.",
       inputSchema: zodSchema(
         z.object({
           products: z
             .array(
               z.object({
-                title: z.string().describe("Product title"),
-                price: z.string().describe("Product price"),
-                margin: z.number().describe("Margin percentage"),
-                revenue: z.number().describe("Total revenue from this product"),
-                unitsSold: z.number().describe("Total units sold"),
-                reorderRate: z.number().optional().describe("Reorder rate multiplier (e.g., 2.5x)"),
-                image: z.string().optional().describe("Product image URL"),
+                title: z.string(),
+                price: z.string(),
+                margin: z.number().describe("Margin %"),
+                revenue: z.number(),
+                unitsSold: z.number(),
+                reorderRate: z.number().optional(),
+                image: z.string().optional(),
               }),
             )
-            .describe("Products to compare (2-3)"),
-          insight: z.string().describe("Your analytical insight about the comparison"),
-          suggestedAction: z
-            .string()
-            .optional()
-            .describe("A suggested next action (e.g., 'Want me to draft a landing page for this product?')"),
+            .describe("Products to compare"),
+          insight: z.string().describe("Your analytical insight"),
+          suggestedAction: z.string().optional().describe("Suggested next action"),
         }),
       ),
       execute: async (input: {
@@ -507,16 +495,16 @@ export function createTools(admin: AdminClient) {
 
     generateLiquidPage: tool({
       description:
-        "Generate a professional DTC-quality HTML landing page for a product. The page should look like a real marketing landing page with hero section, social proof, benefits grid, and CTA. Returns a preview — the page is NOT published until the user confirms. ALWAYS use real product data (title, price, description, image URLs) from prior queryProducts tool calls.",
+        "Generate a landing page. Returns preview — not published until user confirms. Use real product data from prior queries.",
       inputSchema: zodSchema(
         z.object({
           title: z.string().describe("Page title"),
-          productTitle: z.string().describe("Product name to feature"),
-          productPrice: z.string().describe("Product price (e.g., '$39.99')"),
-          productDescription: z.string().describe("Product description or selling points"),
-          productImageUrl: z.string().optional().describe("Product image URL from Shopify CDN"),
-          discountCode: z.string().optional().describe("Optional discount code to feature on the page"),
-          htmlContent: z.string().describe("The full HTML content for the page body. Use inline styles. Include the product image, title, price, description, and a CTA. Make it visually compelling."),
+          productTitle: z.string().describe("Product name"),
+          productPrice: z.string().describe("Price"),
+          productDescription: z.string().describe("Description/selling points"),
+          productImageUrl: z.string().optional().describe("Shopify CDN image URL"),
+          discountCode: z.string().optional().describe("Discount code to feature"),
+          htmlContent: z.string().describe("Concise HTML landing page with inline styles. Hero + 3 benefits + CTA. Keep under 2000 chars."),
         }),
       ),
       execute: async (input: {
@@ -544,15 +532,15 @@ export function createTools(admin: AdminClient) {
 
     createDiscountCode: tool({
       description:
-        "Create a discount code. Returns a preview — the code is NOT created until the user confirms. Supports percentage or fixed amount discounts.",
+        "Create a discount code. Returns preview — not created until user confirms.",
       inputSchema: zodSchema(
         z.object({
-          code: z.string().describe("The discount code (e.g., 'COLLAGEN15')"),
-          discountType: z.enum(["percentage", "fixed_amount"]).describe("Type of discount"),
-          value: z.number().describe("Discount value — percentage (e.g., 15 for 15%) or fixed amount in dollars"),
-          title: z.string().describe("Internal title for the discount"),
-          appliesTo: z.string().optional().describe("Product or collection this applies to (description for display)"),
-          expiresAt: z.string().optional().describe("Expiration date in ISO format. Must be in the future. Use 30 days from now if unsure."),
+          code: z.string().describe("Discount code"),
+          discountType: z.enum(["percentage", "fixed_amount"]).describe("Type"),
+          value: z.number().describe("Value (percentage or dollar amount)"),
+          title: z.string().describe("Internal title"),
+          appliesTo: z.string().optional().describe("What it applies to"),
+          expiresAt: z.string().optional().describe("ISO expiry date. Must be future."),
         }),
       ),
       execute: async (input: {
@@ -578,14 +566,14 @@ export function createTools(admin: AdminClient) {
 
     updateProductCopy: tool({
       description:
-        "Update a product's title or description. Returns a before/after preview — the update is NOT applied until the user confirms.",
+        "Update product title/description. Returns before/after preview — not applied until user confirms.",
       inputSchema: zodSchema(
         z.object({
           productId: z.string().describe("Shopify product GID"),
-          currentTitle: z.string().describe("Current product title"),
-          newTitle: z.string().optional().describe("New product title (omit to keep current)"),
-          currentDescription: z.string().describe("Current product description HTML"),
-          newDescription: z.string().optional().describe("New product description HTML (omit to keep current)"),
+          currentTitle: z.string().describe("Current title"),
+          newTitle: z.string().optional().describe("New title"),
+          currentDescription: z.string().describe("Current description HTML"),
+          newDescription: z.string().optional().describe("New description HTML"),
         }),
       ),
       execute: async (input: {
@@ -614,16 +602,12 @@ export function createTools(admin: AdminClient) {
 
     createKlaviyoAudience: tool({
       description:
-        "Create a targeted email audience in Klaviyo from a list of customer emails. " +
-        "The agent should FIRST use queryCustomers and/or queryOrders to identify the right customers, " +
-        "THEN call this tool with their emails and a description of the criteria. " +
-        "Returns a preview — the audience is NOT created until the user confirms. " +
-        "Use this before sendKlaviyoCampaign.",
+        "Create email audience in Klaviyo from customer emails. Query customers first, then pass emails here. Preview — not created until confirmed.",
       inputSchema: zodSchema(
         z.object({
-          audienceName: z.string().describe("Descriptive name for this audience (e.g., 'High-Value Repeat Buyers', 'Lapsed Customers 30d+')"),
-          description: z.string().describe("Human-readable explanation of how this audience was selected"),
-          customerEmails: z.array(z.string()).describe("Email addresses of customers to include"),
+          audienceName: z.string().describe("Audience name"),
+          description: z.string().describe("How this audience was selected"),
+          customerEmails: z.array(z.string()).describe("Customer emails"),
         }),
       ),
       execute: async (input: {
@@ -645,24 +629,17 @@ export function createTools(admin: AdminClient) {
 
     sendKlaviyoCampaign: tool({
       description:
-        "Create and send an email campaign via Klaviyo to a previously created audience. " +
-        "Compose a professional email with subject line, preview text, and full HTML body. " +
-        "If a discount code or landing page was created earlier in the conversation, reference them in the email. " +
-        "Returns a preview — the campaign is NOT sent until the user confirms.",
+        "Send email campaign via Klaviyo. Compose HTML email with subject and body. Preview — not sent until confirmed.",
       inputSchema: zodSchema(
         z.object({
-          campaignName: z.string().describe("Internal campaign name"),
-          audienceName: z.string().describe("Name of the audience to target (from createKlaviyoAudience)"),
-          customerEmails: z.array(z.string()).describe("Email addresses to target (same list from createKlaviyoAudience)"),
-          subject: z.string().describe("Email subject line — make it compelling and specific"),
-          previewText: z.string().describe("Preview text shown in inbox (1-2 sentences)"),
-          htmlBody: z.string().describe(
-            "Full HTML email body with inline styles. Max-width 600px, single column, mobile-friendly. " +
-            "Include product images, headlines, body copy, discount codes, CTA buttons. " +
-            "Use real product data from the conversation.",
-          ),
-          discountCode: z.string().optional().describe("Discount code to feature, if one was created earlier"),
-          landingPageUrl: z.string().optional().describe("Landing page URL to link to, if one was published earlier"),
+          campaignName: z.string().describe("Campaign name"),
+          audienceName: z.string().describe("Target audience name"),
+          customerEmails: z.array(z.string()).describe("Target emails"),
+          subject: z.string().describe("Subject line"),
+          previewText: z.string().describe("Inbox preview text"),
+          htmlBody: z.string().describe("HTML email body, inline styles, 600px max-width."),
+          discountCode: z.string().optional().describe("Discount code to feature"),
+          landingPageUrl: z.string().optional().describe("Landing page URL to link"),
         }),
       ),
       execute: async (input: {

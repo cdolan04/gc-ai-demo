@@ -42,7 +42,7 @@ export const GET_PRODUCTS = `#graphql
 
 export const GET_ORDERS = `#graphql
   query GetOrders($query: String, $first: Int!) {
-    orders(query: $query, first: $first) {
+    orders(query: $query, first: $first, sortKey: PROCESSED_AT, reverse: true) {
       edges {
         node {
           id

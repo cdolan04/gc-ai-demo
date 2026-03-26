@@ -4,10 +4,7 @@ interface Customer {
   email: string;
   orderCount: number;
   totalSpent: number;
-  currency: string;
-  createdAt: string;
   city: string | null;
-  province: string | null;
   tags: string[];
 }
 
@@ -43,7 +40,7 @@ export function CustomerCard({ customers }: { customers: Customer[] }) {
             </div>
             <div style={{ fontSize: "12px", color: "var(--p-color-text-secondary, #616161)" }}>
               {customer.email}
-              {customer.city && ` · ${customer.city}, ${customer.province}`}
+              {customer.city && ` · ${customer.city}`}
             </div>
           </div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>

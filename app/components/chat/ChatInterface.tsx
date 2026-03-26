@@ -196,7 +196,11 @@ export function ChatInterface({
           </div>
         )}
 
-        {error && (
+        {error && !(
+          // Suppress rate limit errors if the AI already produced content (tool results rendered)
+          error.message.toLowerCase().includes("rate limit") &&
+          messages.some((m) => m.role === "assistant" && m.parts.some((p) => p.type.startsWith("tool-")))
+        ) && (
           <div
             style={{
               padding: "12px",

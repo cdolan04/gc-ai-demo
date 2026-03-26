@@ -7,15 +7,43 @@ import { buildSystemPrompt } from "../lib/ai/system-prompt";
 
 /**
  * Trim conversation history to keep input tokens under the rate limit.
- * Keeps the first message (initial briefing context) and the most recent messages.
- * This prevents large accumulated tool results from blowing past the 30k/min limit.
+ * Two strategies:
+ * 1. Cap total messages (keep first + most recent)
+ * 2. Truncate large tool outputs in older messages — once the AI has analyzed
+ *    a 15K-token order payload, resending it on every request is pure waste.
  */
-const MAX_UI_MESSAGES = 20;
+const MAX_UI_MESSAGES = 12;
+const KEEP_FULL_RESULTS = 2; // keep full tool outputs only for the last N messages
 
 function trimMessages(messages: UIMessage[]): UIMessage[] {
-  if (messages.length <= MAX_UI_MESSAGES) return messages;
-  // Keep first message + last (MAX-1) messages
-  return [messages[0], ...messages.slice(-(MAX_UI_MESSAGES - 1))];
+  const capped =
+    messages.length <= MAX_UI_MESSAGES
+      ? messages
+      : [messages[0], ...messages.slice(-(MAX_UI_MESSAGES - 1))];
+  return truncateOldToolResults(capped);
+}
+
+function truncateOldToolResults(messages: UIMessage[]): UIMessage[] {
+  const cutoff = messages.length - KEEP_FULL_RESULTS;
+  return messages.map((msg, i) => {
+    if (i >= cutoff || msg.role === "user") return msg;
+    const parts = msg.parts.map((part) => {
+      if (part.type.startsWith("tool-") || part.type === "dynamic-tool") {
+        const toolPart = part as { output?: unknown; [key: string]: unknown };
+        if (
+          toolPart.output &&
+          JSON.stringify(toolPart.output).length > 500
+        ) {
+          // Replace large output with stub — cast back to satisfy UIMessage union
+          return Object.assign({}, part, {
+            output: "[Previous tool result — data already analyzed]",
+          }) as typeof part;
+        }
+      }
+      return part;
+    });
+    return { ...msg, parts } as UIMessage;
+  });
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -44,8 +72,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     system: buildSystemPrompt(welcomeContext),
     messages: await convertToModelMessages(trimMessages(messages)),
     tools,
-    maxRetries: 3,
-    stopWhen: stepCountIs(10),
+    maxRetries: 0,
+    stopWhen: stepCountIs(6),
     onStepFinish: ({ toolCalls }) => {
       if (toolCalls?.length) {
         console.log(`[AI] Tools called:`, toolCalls.map((t: { toolName: string }) => t.toolName).join(", "));
